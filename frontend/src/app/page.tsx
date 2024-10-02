@@ -112,12 +112,18 @@ export default function Home() {
           </p>
           <br />
           <h3 className="text-xl font-bold text-white">How to use it?</h3>
-          <p className="text-m mt-2 text-white">
+          <p className="text-sm mt-2 text-white">
             After scanning your plugins in FL, just archive the result (aka the{" "}
             <b>
-              <u>&apos;Installed&apos;</u>
+              <u>Installed</u> 
             </b>{" "}
             folder) and upload it here.
+          </p>
+          <p className="text-sm mt-2 text-white">
+            The result will be a zip file containing the <b><u>User</u></b> folder for both plugin types (<u>Effects</u> and <u>Generators</u>).
+          </p>
+          <p className="text-sm mt-2 text-white">
+            Just copy it to your FL Studio plugins folder and that&apos;s it!
           </p>
         </div>
         <main className="w-full flex flex-row items-start sm:items-start">
