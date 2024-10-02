@@ -2,19 +2,17 @@ name: Deploy app
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     environment: github-pages
     steps:
-        - name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-        
-        - name: Start containers
+
+      - name: Start containers
         env:
-            API_URL: ${{ secrets.API_URL }}
+          API_URL: ${{ secrets.API_URL }}
         run: API_URL=$API_URL docker compose -f docker-compose.yml -d --build
-      
