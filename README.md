@@ -13,7 +13,7 @@ Scan your plugins and make sure to enable all the scanning options, so that you'
 
 ## Usage
 
-From the root of this repository, run the following command:
+Open a terminal at the root of the project and run the following command:
 
 ```bash
 API_URL=http://localhost:8080 docker-compose up --detach
