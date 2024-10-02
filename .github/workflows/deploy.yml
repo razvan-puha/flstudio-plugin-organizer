@@ -15,4 +15,4 @@ jobs:
       - name: Start containers
         env:
           API_URL: ${{ secrets.API_URL }}
-        run: API_URL=$API_URL docker compose -f docker-compose.yml --detach --build
+        run: API_URL=$API_URL docker-compose -f docker-compose.yml -d --build
