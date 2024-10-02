@@ -1,0 +1,5 @@
+# IDE related
+.idea
+
+# Maven related
+target

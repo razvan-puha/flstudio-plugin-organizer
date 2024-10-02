@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: flstudio-plugin-organizer
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+management:
+  endpoints:
+    web:
+      base-path: /manage
+      path-mapping:
+        health: /health
+      exposure:
+        include:
+          - health
+
+
+server:
+  port: 8088
+
+

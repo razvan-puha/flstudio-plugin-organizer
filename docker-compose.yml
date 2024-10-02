@@ -1,0 +1,25 @@
+name: flstudio-plugin-organizer
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8088"  
+    healthcheck:
+      test: curl --fail --silent http://localhost:8088/manage/health || exit 1 
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - API_URL=$API_URL
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
