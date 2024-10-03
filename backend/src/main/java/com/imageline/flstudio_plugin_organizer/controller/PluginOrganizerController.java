@@ -1,5 +1,6 @@
-package com.imageline.flstudio_plugin_organizer;
+package com.imageline.flstudio_plugin_organizer.controller;
 
+import com.imageline.flstudio_plugin_organizer.service.OrganizerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;

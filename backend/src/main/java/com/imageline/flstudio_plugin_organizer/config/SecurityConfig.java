@@ -1,4 +1,4 @@
-package com.imageline.flstudio_plugin_organizer;
+package com.imageline.flstudio_plugin_organizer.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

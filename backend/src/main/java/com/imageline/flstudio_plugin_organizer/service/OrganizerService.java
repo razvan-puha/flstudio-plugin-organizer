@@ -1,14 +1,18 @@
-package com.imageline.flstudio_plugin_organizer;
+package com.imageline.flstudio_plugin_organizer.service;
 
+import com.imageline.flstudio_plugin_organizer.config.MetadataConfig;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchEffectsPathPredicate;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchExtensionPredicate;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchGeneratorsPathPredicate;
+import com.imageline.flstudio_plugin_organizer.util.ZipUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -24,6 +28,7 @@ import java.util.zip.ZipFile;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class OrganizerService {
 
     private static final String FLSTUDIO_VENDOR_NAME = "Image-Line";
@@ -33,6 +38,8 @@ public class OrganizerService {
 
     private static final String VENDOR_NAME_KEY = "ps_file_vendorname_0";
     private static final String PLUGIN_NAME_KEY = "ps_name";
+
+    private final MetadataConfig metadataConfig;
 
     private Map<String, String> parseNfoContent(String nfoFileContent) {
         return nfoFileContent.lines()
@@ -130,17 +137,13 @@ public class OrganizerService {
         Path thirdPartyPluginsDirectory = Path.of(outDirectory.getAbsolutePath(), "User");
         if (!thirdPartyPluginsDirectory.toFile().exists()) {
             boolean dirCreated = thirdPartyPluginsDirectory.toFile().mkdirs();
-            if (dirCreated) {
-                log.debug("Created directory {}", thirdPartyPluginsDirectory);
-            }
+            log.debug("Created directory {}: {}", thirdPartyPluginsDirectory, dirCreated);
         }
 
         Path vendorDirectory = Path.of(thirdPartyPluginsDirectory.toFile().getAbsolutePath(), vendorName);
         if (!vendorDirectory.toFile().exists()) {
             boolean dirCreated = vendorDirectory.toFile().mkdirs();
-            if (dirCreated) {
-                log.debug("Created directory {}", vendorDirectory);
-            }
+            log.debug("Created directory {}: {}", vendorDirectory, dirCreated);
         }
 
         log.info("Moving plugin {} to {}", pluginName, vendorDirectory);
@@ -148,8 +151,23 @@ public class OrganizerService {
         byte[] bytes = new byte[1024];
         int length;
 
+        File fstFile, nfoFile;
+        if (StringUtils.hasText(metadataConfig.getPluginTypeFor(pluginName))) {
+            String pluginType = metadataConfig.getPluginTypeFor(pluginName);
+
+            // create the plugin type directory first
+            File pluginTypeDir = new File(vendorDirectory.toFile().getAbsolutePath(), pluginType);
+            boolean pluginTypeDirCreated = pluginTypeDir.mkdirs();
+            log.debug("Created directory {} under {}: {}", pluginType, vendorName, pluginTypeDirCreated);
+
+            fstFile = new File(pluginTypeDir.getAbsolutePath(), String.format("%s%s", pluginName, PLUGIN_EXTENSION));
+            nfoFile = new File(pluginTypeDir.getAbsolutePath(), String.format("%s%s", pluginName, NFO_EXTENSION));
+        } else {
+            fstFile = new File(vendorDirectory.toFile().getAbsolutePath(), String.format("%s%s", pluginName, PLUGIN_EXTENSION));
+            nfoFile = new File(vendorDirectory.toFile().getAbsolutePath(), String.format("%s%s", pluginName, NFO_EXTENSION));
+        }
+
         // move fst
-        File fstFile = new File(vendorDirectory.toFile().getAbsolutePath(), String.format("%s%s", pluginName, PLUGIN_EXTENSION));
         boolean fstFileCreated = fstFile.createNewFile();
         log.debug("Created file {}: {}", fstFile.getAbsolutePath(), fstFileCreated);
 
@@ -163,7 +181,6 @@ public class OrganizerService {
         }
 
         // move nfo
-        File nfoFile = new File(vendorDirectory.toFile().getAbsolutePath(), String.format("%s%s", pluginName, NFO_EXTENSION));
         boolean nfoFileCreated = nfoFile.createNewFile();
         log.debug("Created file {}: {}", nfoFile.getAbsolutePath(), nfoFileCreated);
 

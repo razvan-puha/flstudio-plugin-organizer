@@ -11,6 +11,37 @@ Scan your plugins and make sure to enable all the scanning options, so that you'
 
 ![alt text](image-1.png)
 
+## EXTRA: Want to enhance the organization?
+
+You can add an even greater level of organization by following the instructions below:
+
+1. Navigate to ```backend/src/main/resources/metadata/plugins-metadata.json```.
+2. Inside this file, you can add your own structure as follows:
+```
+// This represents an array; you can specify as many plugins types as you want
+[
+    {
+        "type": "Reverb", // the plugin type
+        "pluginNames": [
+            // list here your plugin names that you want in this type
+            // e.g. 
+            "Rev LX-24",
+            "Rev PLATE-140",
+            "Little Plate"
+        ]
+    },
+    {
+        "type": "Delay",
+        "pluginNames": [
+            "kHs Delay",
+            "kHs Dual Delay"
+        ]
+    }
+
+    // etc.
+]
+```
+
 ## Usage
 
 Open a terminal at the root of the project and run the following command:
@@ -34,6 +65,10 @@ Just follow the instructions and you're done!
 The result will be a zip file containing the **User** folder for both plugin types (**Effects** and **Generators**).
 
 ![alt text](image-2.png)
+
+With the extra metadata file, it can look like this:
+
+![alt text](image-5.png)
 
 Just replace the **User** folder from your FL Studio plugins folder and that's it, you should see your new structure in FL!
 

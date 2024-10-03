@@ -1,4 +1,4 @@
-package com.imageline.flstudio_plugin_organizer;
+package com.imageline.flstudio_plugin_organizer.util;
 
 import java.io.File;
 import java.io.FileInputStream;

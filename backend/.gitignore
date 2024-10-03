@@ -3,3 +3,5 @@
 
 # Maven related
 target
+
+src/main/resources/metadata/plugins-metadata-local.json
