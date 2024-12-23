@@ -40,6 +40,8 @@ public class OrganizerService {
     private static final String VENDOR_NAME_KEY = "ps_file_vendorname_0";
     private static final String PLUGIN_NAME_KEY = "ps_name";
 
+    private static final String LOG_CREATED_DIRECTORY = "Created directory {}: {}";
+
     private final MetadataConfig metadataConfig;
 
     private Map<String, String> parseNfoContent(String nfoFileContent) {
@@ -105,7 +107,7 @@ public class OrganizerService {
     private void processPlugin(ZipFile zipFile, ZipEntry nfoEntry, File outDirectory) throws IOException {
         if (!outDirectory.exists()) {
             boolean directoryCreated = outDirectory.mkdirs();
-            log.debug("Created directory {}: {}", outDirectory.getAbsolutePath(), directoryCreated);
+            log.debug(LOG_CREATED_DIRECTORY, outDirectory.getAbsolutePath(), directoryCreated);
         }
 
         String nfoContent = readFile(zipFile, nfoEntry);
@@ -113,13 +115,10 @@ public class OrganizerService {
         Map<String, String> nfoMetadata = parseNfoContent(nfoContent);
         String vendorName = nfoMetadata.get(VENDOR_NAME_KEY);
 
-        switch (vendorName) {
-            case FLSTUDIO_VENDOR_NAME, APPLE_VENDOR_NAME:
-                break;
-            default:
-                moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, vendorName, nfoMetadata.get(PLUGIN_NAME_KEY));
-                break;
+        if (FLSTUDIO_VENDOR_NAME.equals(vendorName) || APPLE_VENDOR_NAME.equals(vendorName)) {
+            return;
         }
+        moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, vendorName, nfoMetadata.get(PLUGIN_NAME_KEY));
     }
 
     private String readFile(ZipFile zipFile, ZipEntry zipEntry) throws IOException {
@@ -142,13 +141,13 @@ public class OrganizerService {
         Path thirdPartyPluginsDirectory = Path.of(outDirectory.getAbsolutePath(), "User");
         if (!thirdPartyPluginsDirectory.toFile().exists()) {
             boolean dirCreated = thirdPartyPluginsDirectory.toFile().mkdirs();
-            log.debug("Created directory {}: {}", thirdPartyPluginsDirectory, dirCreated);
+            log.debug(LOG_CREATED_DIRECTORY, thirdPartyPluginsDirectory, dirCreated);
         }
 
         Path vendorDirectory = Path.of(thirdPartyPluginsDirectory.toFile().getAbsolutePath(), vendorName);
         if (!vendorDirectory.toFile().exists()) {
             boolean dirCreated = vendorDirectory.toFile().mkdirs();
-            log.debug("Created directory {}: {}", vendorDirectory, dirCreated);
+            log.debug(LOG_CREATED_DIRECTORY, vendorDirectory, dirCreated);
         }
 
         log.info("Moving plugin {} to {}", pluginName, vendorDirectory);
@@ -261,16 +260,12 @@ public class OrganizerService {
         Map<String, String> nfoMetadata = parseNfoContent(nfoContent);
         String vendorName = nfoMetadata.get(VENDOR_NAME_KEY);
 
-        switch (vendorName) {
-            case FLSTUDIO_VENDOR_NAME, APPLE_VENDOR_NAME:
-                break;
-            default:
-                if (!vendorPlugins.containsKey(vendorName)) {
-                    vendorPlugins.put(vendorName, new ArrayList<>());
-                }
-
-                vendorPlugins.get(vendorName).add(nfoMetadata.get(PLUGIN_NAME_KEY));
-                break;
+        if (FLSTUDIO_VENDOR_NAME.equals(vendorName) || APPLE_VENDOR_NAME.equals(vendorName)) {
+            return;
         }
+        if (!vendorPlugins.containsKey(vendorName)) {
+            vendorPlugins.put(vendorName, new ArrayList<>());
+        }
+        vendorPlugins.get(vendorName).add(nfoMetadata.get(PLUGIN_NAME_KEY));
     }
 }

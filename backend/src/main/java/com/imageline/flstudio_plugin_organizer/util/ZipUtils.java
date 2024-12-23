@@ -10,7 +10,9 @@ import java.util.zip.ZipOutputStream;
 
 public class ZipUtils {
 
-    public static File zipDirectory(File directory) throws Exception {
+    private ZipUtils() {}
+
+    public static File zipDirectory(File directory) throws IOException {
         String resultFile = String.format("%s/organized_plugins_%s.zip", directory.getParent(), UUID.randomUUID());
         try (
                 FileOutputStream fileOutputStream = new FileOutputStream(resultFile);
