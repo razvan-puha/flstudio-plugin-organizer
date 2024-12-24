@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FolderItem, FileItem } from "@/types/folder";
-import { Folder, File, ChevronRight, MoreVertical } from "lucide-react";
+import { Folder, File, ChevronRight, MoreVertical, GripVertical } from "lucide-react";
 import { FolderItemContent } from "./folder-item-content";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,7 +65,7 @@ export function FolderListItem({
   };
 
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={style}>
+    <div ref={setNodeRef} style={style}>
       <div className="group relative">
         <div
           onClick={handleFolderClick}
@@ -74,6 +74,16 @@ export function FolderListItem({
             isHighlighted && "bg-accent"
           )}
         >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </Button>
+
           {item.type === "folder" && (
             <ChevronRight 
               className={cn(
@@ -82,6 +92,7 @@ export function FolderListItem({
               )} 
             />
           )}
+          
           {item.type === "folder" ? (
             <>
               <Folder className="h-4 w-4 text-blue-500" />
