@@ -4,9 +4,7 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { CreateFileDialog } from "./create-file-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
-import { FileItem, FolderItem } from "@/types/folder";
 import { searchItems } from "@/lib/utils/search";
-import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FolderPane } from "./folder-pane";
@@ -15,11 +13,17 @@ interface SplitViewProps {
   title: string;
   leftFolderId: string;
   rightFolderId: string;
-  onMoveItem: (item: FileItem | FolderItem, fromId: string, toId: string) => void;
   className?: string;
+  type: "effects" | "generators";
 }
 
-export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, className }: Readonly<SplitViewProps>) {
+export function SplitView({
+  title,
+  leftFolderId,
+  rightFolderId,
+  className,
+  type,
+}: Readonly<SplitViewProps>) {
   const [leftSearch, setLeftSearch] = useState("");
   const [rightSearch, setRightSearch] = useState("");
   const [activeDialog, setActiveDialog] = useState<{
@@ -28,29 +32,20 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
   } | null>(null);
 
   const { getFolderContents, addItemToFolder } = useStore();
-  const leftItems = getFolderContents(leftFolderId);
-  const rightItems = getFolderContents(rightFolderId);
+  const leftItems = getFolderContents(leftFolderId, type);
+  const rightItems = getFolderContents(rightFolderId, type);
 
   const filteredLeftItems = searchItems(leftItems, leftSearch);
   const filteredRightItems = searchItems(rightItems, rightSearch);
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const sourceId = result.source.droppableId;
-    const destId = result.destination.droppableId;
-    
-    if (sourceId === destId) return;
-
-    const sourceItems = getFolderContents(sourceId);
-    const item = sourceItems[result.source.index];
-    
-    onMoveItem(item, sourceId, destId);
-  };
-
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <div className={cn("grid grid-cols-[30%,4%,30%] items-center gap-6 w-full", className)}>
+    <>
+      <div
+        className={cn(
+          "grid grid-cols-[30%,4%,30%] items-center gap-6 w-full",
+          className
+        )}
+      >
         <FolderPane
           id={leftFolderId}
           title={`Default ${title} Structure`}
@@ -59,6 +54,7 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
           onSearchChange={setLeftSearch}
           onNewFile={() => setActiveDialog({ type: "file", side: "left" })}
           onNewFolder={() => setActiveDialog({ type: "folder", side: "left" })}
+          type={type}
         />
         <div className="flex items-center justify-center p-4">
           <ChevronsRight className="h-8 w-8 text-muted-foreground animate-pulse text-white" />
@@ -72,38 +68,39 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
           onNewFile={() => setActiveDialog({ type: "file", side: "right" })}
           onNewFolder={() => setActiveDialog({ type: "folder", side: "right" })}
           enableImportExport={true}
+          type={type}
         />
       </div>
-
       <CreateFileDialog
         open={activeDialog?.type === "file"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         onCreateFile={(name, content) => {
-          const folderId = activeDialog?.side === "left" ? leftFolderId : rightFolderId;
+          const folderId =
+            activeDialog?.side === "left" ? leftFolderId : rightFolderId;
           addItemToFolder(folderId, {
             id: Math.random().toString(36).substring(7),
             name,
             type: "file",
             content,
-          });
+          }, type);
           setActiveDialog(null);
         }}
       />
-
       <CreateFolderDialog
         open={activeDialog?.type === "folder"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         onCreateFolder={(name) => {
-          const folderId = activeDialog?.side === "left" ? leftFolderId : rightFolderId;
+          const folderId =
+            activeDialog?.side === "left" ? leftFolderId : rightFolderId;
           addItemToFolder(folderId, {
             id: Math.random().toString(36).substring(7),
             name,
             type: "folder",
             children: [],
-          });
+          }, type);
           setActiveDialog(null);
         }}
       />
-    </DragDropContext>
+    </>
   );
 }

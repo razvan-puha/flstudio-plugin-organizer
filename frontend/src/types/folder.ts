@@ -1,3 +1,5 @@
+import { UniqueIdentifier } from "@dnd-kit/core";
+
 export interface FolderItem {
   id: string;
   name: string;
@@ -10,4 +12,9 @@ export interface FileItem {
   name: string;
   type: "file";
   content?: string;
+}
+
+export interface ItemList {
+  id: UniqueIdentifier;
+  items: (FolderItem | FileItem)[];
 }

@@ -2,7 +2,6 @@
 
 import { FileItem, FolderItem } from "@/types/folder";
 import { FolderList } from "./folder-list";
-import { Droppable } from "@hello-pangea/dnd";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
 import { CreateFileDialog } from "./create-file-dialog";
@@ -11,9 +10,14 @@ import { ImportDialog } from "./import-dialog";
 import { FolderPaneHeader } from "./folder-pane-header";
 import { cn } from "@/lib/utils";
 import { ResetDialog } from "./reset-dialog";
+import { UniqueIdentifier, useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 interface FolderPaneProps {
-  id: string;
+  id: UniqueIdentifier;
   title: string;
   items: (FileItem | FolderItem)[];
   searchValue: string;
@@ -22,6 +26,7 @@ interface FolderPaneProps {
   onNewFolder: () => void;
   className?: string;
   enableImportExport?: boolean;
+  type: "effects" | "generators";
 }
 
 export function FolderPane({
@@ -34,6 +39,7 @@ export function FolderPane({
   onNewFolder,
   className,
   enableImportExport = false,
+  type,
 }: Readonly<FolderPaneProps>) {
   const { addNestedItem, setFolderContents } = useStore();
   const [activeDialog, setActiveDialog] = useState<{
@@ -49,7 +55,7 @@ export function FolderPane({
       name,
       type: "file",
       content,
-    });
+    }, type);
     setActiveDialog(null);
   };
 
@@ -61,17 +67,21 @@ export function FolderPane({
       name,
       type: "folder",
       children: [],
-    });
+    }, type);
     setActiveDialog(null);
   };
 
   const handleImport = (structure: (FolderItem | FileItem)[]) => {
-    setFolderContents(id, structure);
+    setFolderContents(id, structure, type);
   };
 
   const handleReset = () => {
-    setFolderContents(id, []);
+    setFolderContents(id, [], type);
   };
+
+  const { setNodeRef } = useDroppable({
+    id,
+  });
 
   return (
     <div
@@ -91,29 +101,22 @@ export function FolderPane({
         items={items}
         enableImportExport={enableImportExport}
       />
-      <Droppable droppableId={id}>
-        {(provided) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="flex-1 overflow-auto"
-          >
-            <FolderList
-              items={items}
-              isDraggable
-              onItemClick={() => {}}
-              onCreateFile={(parentId) =>
-                setActiveDialog({ type: "file", parentId })
-              }
-              onCreateFolder={(parentId) =>
-                setActiveDialog({ type: "folder", parentId })
-              }
-              searchQuery={searchValue}
-            />
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+
+      <div ref={setNodeRef} className="flex-1 overflow-auto">
+        <SortableContext id={id as string} items={items} strategy={verticalListSortingStrategy}>
+          <FolderList
+            items={items}
+            onItemClick={() => {}}
+            onCreateFile={(parentId) =>
+              setActiveDialog({ type: "file", parentId })
+            }
+            onCreateFolder={(parentId) =>
+              setActiveDialog({ type: "folder", parentId })
+            }
+            searchQuery={searchValue}
+          />
+        </SortableContext>
+      </div>
 
       <CreateFileDialog
         open={activeDialog?.type === "file"}
