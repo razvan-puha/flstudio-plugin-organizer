@@ -66,13 +66,15 @@ export const useStore = create<StoreState>()(
           };
         });
       },
-      setFolderContents: (folderId: string, items: (FolderItem | FileItem)[]) =>
-        set((state) => ({
+      setFolderContents: (folderId: string, items: (FolderItem | FileItem)[]) => {
+        const state = get();
+        set({
           folderContents: {
             ...state.folderContents,
             [folderId]: items,
           },
-        })),
+        });
+      },
     }),
     {
       name: 'folder-storage',

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { FolderActions } from "./folder-actions";
 import { SearchBar } from "./search-bar";
-import { Download, Upload } from "lucide-react";
+import { Download, RotateCcw, Upload } from "lucide-react";
 import { exportFileStructure } from "@/lib/utils/file-structure";
 import { FolderItem, FileItem } from "@/types/folder";
 
@@ -14,6 +14,7 @@ interface FolderPaneHeaderProps {
   onNewFile: () => void;
   onNewFolder: () => void;
   onImport: () => void;
+  onReset: () => void;
   items: (FolderItem | FileItem)[];
   enableImportExport?: boolean;
 }
@@ -25,6 +26,7 @@ export function FolderPaneHeader({
   onNewFile,
   onNewFolder,
   onImport,
+  onReset,
   items,
   enableImportExport = false,
 }: Readonly<FolderPaneHeaderProps>) {
@@ -48,6 +50,14 @@ export function FolderPaneHeader({
         <div className="flex items-center gap-2">
           {enableImportExport && (
             <>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Reset structure"
+                onClick={onReset}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
               <Button
                 variant="outline"
                 size="icon"

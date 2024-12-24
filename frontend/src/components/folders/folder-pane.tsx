@@ -10,6 +10,7 @@ import { CreateFolderDialog } from "./create-folder-dialog";
 import { ImportDialog } from "./import-dialog";
 import { FolderPaneHeader } from "./folder-pane-header";
 import { cn } from "@/lib/utils";
+import { ResetDialog } from "./reset-dialog";
 
 interface FolderPaneProps {
   id: string;
@@ -36,7 +37,7 @@ export function FolderPane({
 }: Readonly<FolderPaneProps>) {
   const { addNestedItem, setFolderContents } = useStore();
   const [activeDialog, setActiveDialog] = useState<{
-    type: "file" | "folder" | "import";
+    type: "file" | "folder" | "import" | "reset";
     parentId?: string;
   } | null>(null);
 
@@ -68,8 +69,17 @@ export function FolderPane({
     setFolderContents(id, structure);
   };
 
+  const handleReset = () => {
+    setFolderContents(id, []);
+  };
+
   return (
-    <div className={cn("flex flex-col h-[600px] bg-card rounded-lg border shadow-sm", className)}>
+    <div
+      className={cn(
+        "flex flex-col h-[600px] bg-card rounded-lg border shadow-sm",
+        className
+      )}
+    >
       <FolderPaneHeader
         title={title}
         searchValue={searchValue}
@@ -77,6 +87,7 @@ export function FolderPane({
         onNewFile={onNewFile}
         onNewFolder={onNewFolder}
         onImport={() => setActiveDialog({ type: "import" })}
+        onReset={() => setActiveDialog({ type: "reset" })}
         items={items}
         enableImportExport={enableImportExport}
       />
@@ -91,8 +102,12 @@ export function FolderPane({
               items={items}
               isDraggable
               onItemClick={() => {}}
-              onCreateFile={(parentId) => setActiveDialog({ type: "file", parentId })}
-              onCreateFolder={(parentId) => setActiveDialog({ type: "folder", parentId })}
+              onCreateFile={(parentId) =>
+                setActiveDialog({ type: "file", parentId })
+              }
+              onCreateFolder={(parentId) =>
+                setActiveDialog({ type: "folder", parentId })
+              }
               searchQuery={searchValue}
             />
             {provided.placeholder}
@@ -116,6 +131,15 @@ export function FolderPane({
         open={activeDialog?.type === "import"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         onImport={handleImport}
+      />
+
+      <ResetDialog
+        open={activeDialog?.type === "reset"}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        onReset={() => {
+          handleReset();
+          setActiveDialog(null);
+        }}
       />
     </div>
   );

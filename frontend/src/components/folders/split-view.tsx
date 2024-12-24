@@ -53,7 +53,7 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
       <div className={cn("grid grid-cols-[30%,4%,30%] items-center gap-6 w-full", className)}>
         <FolderPane
           id={leftFolderId}
-          title={title}
+          title={`Default ${title} Structure`}
           items={filteredLeftItems}
           searchValue={leftSearch}
           onSearchChange={setLeftSearch}
@@ -65,7 +65,7 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
         </div>
         <FolderPane
           id={rightFolderId}
-          title={`Organized ${title}`}
+          title={`New ${title} Structure`}
           items={filteredRightItems}
           searchValue={rightSearch}
           onSearchChange={setRightSearch}
