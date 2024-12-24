@@ -50,7 +50,7 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className={cn("grid grid-cols-[1fr,auto,1fr] items-center gap-6", className)}>
+      <div className={cn("grid grid-cols-[30%,4%,30%] items-center gap-6 w-full", className)}>
         <FolderPane
           id={leftFolderId}
           title={title}
@@ -71,6 +71,7 @@ export function SplitView({ title, leftFolderId, rightFolderId, onMoveItem, clas
           onSearchChange={setRightSearch}
           onNewFile={() => setActiveDialog({ type: "file", side: "right" })}
           onNewFolder={() => setActiveDialog({ type: "folder", side: "right" })}
+          enableImportExport={true}
         />
       </div>
 

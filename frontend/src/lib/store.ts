@@ -9,10 +9,15 @@ interface StoreState {
   addItemToFolder: (folderId: string, item: FolderItem | FileItem) => void;
   getFolderContents: (folderId: string) => (FolderItem | FileItem)[];
   addNestedItem: (parentId: string, item: FolderItem | FileItem) => void;
+  setFolderContents: (folderId: string, items: (FolderItem | FileItem)[]) => void;
 }
 
-const updateItemsRecursively = (items: (FolderItem | FileItem)[], parentId: string, newItem: FolderItem | FileItem): (FolderItem | FileItem)[] => {
-  return items.map((item) => {
+const updateItemsRecursively = (
+  items: (FolderItem | FileItem)[],
+  parentId: string,
+  newItem: FolderItem | FileItem
+): (FolderItem | FileItem)[] => {
+  return items.map((item: FolderItem | FileItem) => {
     if (item.id === parentId && item.type === 'folder') {
       return {
         ...item,
@@ -61,6 +66,13 @@ export const useStore = create<StoreState>()(
           };
         });
       },
+      setFolderContents: (folderId: string, items: (FolderItem | FileItem)[]) =>
+        set((state) => ({
+          folderContents: {
+            ...state.folderContents,
+            [folderId]: items,
+          },
+        })),
     }),
     {
       name: 'folder-storage',

@@ -1,14 +1,15 @@
 "use client";
 
 import { FileItem, FolderItem } from "@/types/folder";
-import { FolderActions } from "./folder-actions";
-import { SearchBar } from "./search-bar";
 import { FolderList } from "./folder-list";
 import { Droppable } from "@hello-pangea/dnd";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
 import { CreateFileDialog } from "./create-file-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
+import { ImportDialog } from "./import-dialog";
+import { FolderPaneHeader } from "./folder-pane-header";
+import { cn } from "@/lib/utils";
 
 interface FolderPaneProps {
   id: string;
@@ -18,6 +19,8 @@ interface FolderPaneProps {
   onSearchChange: (value: string) => void;
   onNewFile: () => void;
   onNewFolder: () => void;
+  className?: string;
+  enableImportExport?: boolean;
 }
 
 export function FolderPane({
@@ -28,11 +31,13 @@ export function FolderPane({
   onSearchChange,
   onNewFile,
   onNewFolder,
+  className,
+  enableImportExport = false,
 }: Readonly<FolderPaneProps>) {
-  const { addNestedItem } = useStore();
+  const { addNestedItem, setFolderContents } = useStore();
   const [activeDialog, setActiveDialog] = useState<{
-    type: "file" | "folder";
-    parentId: string;
+    type: "file" | "folder" | "import";
+    parentId?: string;
   } | null>(null);
 
   const handleCreateNestedFile = (name: string, content: string) => {
@@ -59,15 +64,22 @@ export function FolderPane({
     setActiveDialog(null);
   };
 
+  const handleImport = (structure: (FolderItem | FileItem)[]) => {
+    setFolderContents(id, structure);
+  };
+
   return (
-    <div className="flex flex-col h-[600px] bg-card rounded-lg border shadow-sm">
-      <div className="p-4 border-b space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <FolderActions onNewFile={onNewFile} onNewFolder={onNewFolder} />
-        </div>
-        <SearchBar value={searchValue} onChange={onSearchChange} />
-      </div>
+    <div className={cn("flex flex-col h-[600px] bg-card rounded-lg border shadow-sm", className)}>
+      <FolderPaneHeader
+        title={title}
+        searchValue={searchValue}
+        onSearchChange={onSearchChange}
+        onNewFile={onNewFile}
+        onNewFolder={onNewFolder}
+        onImport={() => setActiveDialog({ type: "import" })}
+        items={items}
+        enableImportExport={enableImportExport}
+      />
       <Droppable droppableId={id}>
         {(provided) => (
           <div
@@ -98,6 +110,12 @@ export function FolderPane({
         open={activeDialog?.type === "folder"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         onCreateFolder={handleCreateNestedFolder}
+      />
+
+      <ImportDialog
+        open={activeDialog?.type === "import"}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        onImport={handleImport}
       />
     </div>
   );

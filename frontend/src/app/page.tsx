@@ -242,7 +242,7 @@ export default function Home() {
               >
                 Load
               </Button>
-              {/* <Button
+              <Button
                 type="submit"
                 className="w ml-3 self-end text-white hover:bg-success"
                 disabled={
@@ -251,7 +251,7 @@ export default function Home() {
                 }
               >
                 Organize
-              </Button> */}
+              </Button>
               <Button
                 className="ml-3 self-end text-white hover:bg-success"
                 disabled={downloadUrl == ""}
@@ -262,7 +262,7 @@ export default function Home() {
             </form>
           </Form>
 
-          <div hidden={!showSplitViews}>
+          {showSplitViews && (
             <SplitView
               title="Effects"
               leftFolderId={effectsLeftFolderId}
@@ -280,7 +280,9 @@ export default function Home() {
                 }));
               }}
             />
+          )}
 
+          {showSplitViews && (
             <SplitView
               title="Generators"
               leftFolderId={generatorsLeftFolderId}
@@ -298,7 +300,7 @@ export default function Home() {
                 }));
               }}
             />
-          </div>
+          )}
         </main>
       </div>
       <div className="w-11/12 self-center pb-8">
