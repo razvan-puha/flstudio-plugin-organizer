@@ -41,6 +41,7 @@ interface StoreState {
     type: "effects" | "generators",
     containerId: string
   ) => void;
+  removeItemFromFolder: (folderId: string, itemId: UniqueIdentifier, type: "effects" | "generators") => void;
 }
 
 const updateItemsRecursively = (
@@ -78,6 +79,7 @@ export const useStore = create<StoreState>()(
       setFolderContents: setFolderContents(set),
       getItemIndex: getItemIndex(get),
       moveItems: moveItems(get, set),
+      removeItemFromFolder: removeItemFromFolder(set),
     }),
     {
       name: "folder-storage",
@@ -270,5 +272,21 @@ function addItemToFolder(set: SetStateFunction) {
         ),
       }));
     }
+  };
+}
+
+function removeItemFromFolder(set: SetStateFunction) {
+  return (folderId: string, itemId: UniqueIdentifier, type: "effects" | "generators") => {
+    set((state) => {
+      const newState = { ...state };
+      const folder = type === "effects" ? newState.effectsFolderContents : newState.generatorsFolderContents;
+      const targetFolder = folder.find(f => f.id === folderId);
+      
+      if (targetFolder) {
+        targetFolder.items = targetFolder.items.filter(item => item.id !== itemId);
+      }
+      
+      return newState;
+    });
   };
 }

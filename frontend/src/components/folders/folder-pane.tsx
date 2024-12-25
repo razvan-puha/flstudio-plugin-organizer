@@ -10,11 +10,11 @@ import { ImportDialog } from "./import-dialog";
 import { FolderPaneHeader } from "./folder-pane-header";
 import { cn } from "@/lib/utils";
 import { ResetDialog } from "./reset-dialog";
-import { UniqueIdentifier, useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { useDroppable, UniqueIdentifier } from '@dnd-kit/core';
 
 interface FolderPaneProps {
   id: UniqueIdentifier;
@@ -46,6 +46,16 @@ export function FolderPane({
     type: "file" | "folder" | "import" | "reset";
     parentId?: string;
   } | null>(null);
+
+  const { setNodeRef } = useDroppable({
+    id: id,
+    data: {
+      type: type,
+      accepts: ['file', 'folder'],
+      isContainer: true,
+      containerId: id
+    }
+  });
 
   const handleCreateNestedFile = (name: string, content: string) => {
     if (!activeDialog?.parentId) return;
@@ -79,14 +89,11 @@ export function FolderPane({
     setFolderContents(id, [], type);
   };
 
-  const { setNodeRef } = useDroppable({
-    id,
-  });
-
   return (
     <div
+      ref={setNodeRef}
       className={cn(
-        "flex flex-col h-[600px] bg-card rounded-lg border shadow-sm",
+        "flex flex-col h-[600px] bg-card rounded-lg border shadow-sm relative",
         className
       )}
     >
@@ -102,8 +109,12 @@ export function FolderPane({
         enableImportExport={enableImportExport}
       />
 
-      <div ref={setNodeRef} className="flex-1 overflow-auto">
-        <SortableContext id={id as string} items={items} strategy={verticalListSortingStrategy}>
+      <div className="flex-1 overflow-auto">
+        <SortableContext 
+          id={id as string} 
+          items={items}
+          strategy={verticalListSortingStrategy}
+        >
           <FolderList
             items={items}
             onItemClick={() => {}}
