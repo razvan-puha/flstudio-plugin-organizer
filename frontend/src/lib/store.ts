@@ -14,7 +14,8 @@ interface StoreState {
   addItemToFolder: (
     folderId: UniqueIdentifier,
     item: FolderOrFileItem,
-    type: "effects" | "generators"
+    type: "effects" | "generators",
+    index?: number
   ) => void;
   getFolderContents: (
     folderId: UniqueIdentifier,
@@ -253,13 +254,19 @@ function addItemToFolder(set: SetStateFunction) {
   return (
     folderId: UniqueIdentifier,
     item: FolderOrFileItem,
-    type: "effects" | "generators"
+    type: "effects" | "generators",
+    index?: number
   ) => {
     if (type === "effects") {
       set((state) => ({
         effectsFolderContents: state.effectsFolderContents.map((list) =>
           list.id === folderId
-            ? { ...list, items: [...list.items, item] }
+            ? {
+                ...list,
+                items: index !== undefined
+                  ? [...list.items.slice(0, index), item, ...list.items.slice(index)]
+                  : [...list.items, item]
+              }
             : list
         ),
       }));
@@ -267,7 +274,12 @@ function addItemToFolder(set: SetStateFunction) {
       set((state) => ({
         generatorsFolderContents: state.generatorsFolderContents.map((list) =>
           list.id === folderId
-            ? { ...list, items: [...list.items, item] }
+            ? {
+                ...list,
+                items: index !== undefined
+                  ? [...list.items.slice(0, index), item, ...list.items.slice(index)]
+                  : [...list.items, item]
+              }
             : list
         ),
       }));

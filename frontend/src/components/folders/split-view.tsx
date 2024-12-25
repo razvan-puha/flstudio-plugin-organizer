@@ -8,8 +8,9 @@ import { searchItems } from "@/lib/utils/search";
 import { ChevronsRight } from "lucide-react";
 import { cn, getTypeFromContainerId } from "@/lib/utils";
 import { FolderPane } from "./folder-pane";
-import { DndContext, useSensors, useSensor, PointerSensor, KeyboardSensor, DragEndEvent, UniqueIdentifier, closestCenter } from '@dnd-kit/core';
+import { DndContext, useSensors, useSensor, PointerSensor, KeyboardSensor, DragEndEvent, UniqueIdentifier, closestCenter, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { FolderListItem } from "./folder-list-item";
 
 interface SplitViewProps {
   title: string;
@@ -32,6 +33,7 @@ export function SplitView({
     type: "file" | "folder";
     side: "left" | "right";
   } | null>(null);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
   const { getFolderContents, addItemToFolder, moveItems, getItemIndex } = useStore();
   const leftItems = getFolderContents(leftFolderId, type);
@@ -47,31 +49,58 @@ export function SplitView({
     })
   );
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id);
+  }
+
+  function handleDragCancel() {
+    setActiveId(null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
     const { active, over } = event;
 
     if (!over) return;
 
     const activeId = active.id;
     const overId = over.id;
-
-    // Get source and destination container IDs
     const activeContainer = active.data.current?.sortable?.containerId;
     const overContainer = over.data.current?.sortable?.containerId;
-    
-    // If we're dropping on an item in the same container, handle as a sort operation
+
+    // Handle sorting within container
+    if (handleSameContainerSort(activeContainer, overContainer, activeId, overId)) {
+      return;
+    }
+
+    // Handle cross-container movement
+    handleCrossContainerMove(activeContainer, overContainer, over.id, activeId);
+  }
+
+  function handleSameContainerSort(
+    activeContainer: string | undefined,
+    overContainer: string | undefined,
+    activeId: UniqueIdentifier,
+    overId: UniqueIdentifier
+  ): boolean {
     if (activeContainer && overContainer && activeContainer === overContainer) {
       if (activeId !== overId) {
         const type = getTypeFromContainerId(activeContainer);
         onMoveItem(activeId, overId, type, activeContainer);
       }
-      return;
+      return true;
     }
+    return false;
+  }
 
-    // If we're dropping directly on a container (FolderPane)
-    const targetContainer = overContainer || over.id;
+  function handleCrossContainerMove(
+    activeContainer: string | undefined,
+    overContainer: string | undefined,
+    overId: UniqueIdentifier,
+    activeId: UniqueIdentifier
+  ) {
+    const targetContainer = overContainer ?? overId;
     if (targetContainer === leftFolderId || targetContainer === rightFolderId) {
-      // Don't move if dropping in the same container
       if (activeContainer === targetContainer) return;
 
       const item = leftItems.find(i => i.id === activeId) || rightItems.find(i => i.id === activeId);
@@ -79,9 +108,12 @@ export function SplitView({
 
       const sourceFolder = activeContainer === leftFolderId ? leftFolderId : rightFolderId;
       
-      // Remove item from source folder and add to target folder
+      // Calculate insert index
+      const targetItems = targetContainer === leftFolderId ? leftItems : rightItems;
+      const insertIndex = overId !== targetContainer ? targetItems.findIndex(item => item.id === overId) : undefined;
+
       useStore.getState().removeItemFromFolder(sourceFolder, activeId, type);
-      useStore.getState().addItemToFolder(targetContainer, item, type);
+      useStore.getState().addItemToFolder(targetContainer, item, type, insertIndex);
     }
   }
 
@@ -99,15 +131,22 @@ export function SplitView({
     moveItems(activeIndex, overIndex, type, containerId);
   };
 
+  const activeItem = activeId ? (
+    leftItems.find(item => item.id === activeId) ||
+    rightItems.find(item => item.id === activeId)
+  ) : null;
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div
         className={cn(
-          "grid grid-cols-[30%,4%,30%] items-start gap-6 w-full",
+          "grid grid-cols-[30%,4%,30%] items-start gap-6 w-full h-[600px]",
           className
         )}
       >
@@ -121,7 +160,7 @@ export function SplitView({
           onNewFolder={() => setActiveDialog({ type: "folder", side: "left" })}
           type={type}
         />
-        <div className="flex items-center justify-center p-4">
+        <div className="flex items-center justify-center h-full">
           <ChevronsRight className="h-8 w-8 text-muted-foreground animate-pulse text-white" />
         </div>
         <FolderPane
@@ -166,6 +205,15 @@ export function SplitView({
           setActiveDialog(null);
         }}
       />
+      <DragOverlay>
+        {activeItem ? (
+          <FolderListItem
+            item={activeItem}
+            onClick={() => {}}
+            searchQuery=""
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
