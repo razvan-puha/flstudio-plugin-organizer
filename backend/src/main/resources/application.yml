@@ -16,8 +16,8 @@ management:
         include:
           - health
 
-
 server:
   port: 8088
 
-
+config:
+  allowedOrigins: http://localhost:3000,http://localhost,https://frontend.flstudio-plugin-organizer.orb.local 

@@ -1,7 +1,11 @@
 package com.imageline.flstudio_plugin_organizer.controller;
 
+import com.imageline.flstudio_plugin_organizer.dto.PluginList;
 import com.imageline.flstudio_plugin_organizer.service.OrganizerService;
 import lombok.RequiredArgsConstructor;
+
+import java.io.IOException;
+
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,5 +25,10 @@ public class PluginOrganizerController {
     @PostMapping(value = "/process", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UrlResource> processZip(@RequestPart MultipartFile file) throws Exception {
         return organizerService.processZip(file);
+    }
+
+    @PostMapping(value = "/load", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PluginList> loadZip(@RequestPart MultipartFile file) throws IOException {
+        return organizerService.loadZip(file);
     }
 }

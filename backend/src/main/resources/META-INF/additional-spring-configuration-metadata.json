@@ -1,0 +1,9 @@
+{
+  "properties": [
+    {
+      "name": "config.allowed-origins",
+      "type": "java.util.List<java.lang.String>",
+      "description": "A description for 'config.allowed-origins'"
+    }
+  ]
+}
