@@ -16,6 +16,7 @@ import { z } from "zod";
 import { Progress } from "@/components/ui/progress";
 import { createRequestBody } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import Tree from "@/components/tree/tree";
 
 const formSchema = z.object({
   zipFile: z.any(),
@@ -35,7 +36,7 @@ export default function Home() {
   const onSubmit = () => {
     setHideProgress(false);
     setLabelText("Processing...");
-    
+
     fetch(process.env.NEXT_PUBLIC_API_URL + "/api/process", {
       method: "POST",
       body: createRequestBody(form.getValues().zipFile),
@@ -105,7 +106,9 @@ export default function Home() {
     <div className="flex flex-col justify-between min-h-screen bg-neutral">
       <div className="flex-col items-start min-h-fit p-8 pb-20 sm:p-20 font-[family-name:var(--font-geist-sans)]">
         <div className="flex flex-col items-start w-full">
-          <h3 className="text-2xl font-bold text-white">FL Studio Plugin Organizer</h3>
+          <h3 className="text-2xl font-bold text-white">
+            FL Studio Plugin Organizer
+          </h3>
           <p className="text-lg mt-2 text-white">
             A little tool that I&apos;ve made for better organizing your 3rd
             party FL Studio plugins.
@@ -115,18 +118,22 @@ export default function Home() {
           <p className="text-sm mt-2 text-white">
             After scanning your plugins in FL, just archive the result (aka the{" "}
             <b>
-              <u>Installed</u> 
+              <u>Installed</u>
             </b>{" "}
             folder) and upload it here.
           </p>
           <p className="text-sm mt-2 text-white">
-            The result will be a zip file containing the <b><u>User</u></b> folder for both plugin types (<u>Effects</u> and <u>Generators</u>).
+            The result will be a zip file containing the{" "}
+            <b>
+              <u>User</u>
+            </b>{" "}
+            folder for both plugin types (<u>Effects</u> and <u>Generators</u>).
           </p>
           <p className="text-sm mt-2 text-white">
             Just copy it to your FL Studio plugins folder and that&apos;s it!
           </p>
         </div>
-        <main className="w-full flex flex-row items-start sm:items-start">
+        <main className="w-full flex flex-col items-start sm:items-start">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit, onSubmitError)}
@@ -171,14 +178,18 @@ export default function Home() {
               </Button>
             </form>
           </Form>
+          <div className="w-full flex flex-row items-start">
+            <Tree />
+            <Tree />
+          </div>
         </main>
       </div>
-      <div className="w-11/12 self-center pb-8"> 
+      <div className="w-11/12 self-center pb-8">
         <Label htmlFor="progress" className="text-sm text-white">
           <b>{labelText}</b>
         </Label>
         <Progress
-          className="mt-3" 
+          className="mt-3"
           id="progress"
           value={progress}
           hidden={hideProgress}
