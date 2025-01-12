@@ -1,3 +1,4 @@
+import { TreeItem } from "@/types/types";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -9,4 +10,70 @@ export function createRequestBody(file: FileList): FormData {
   const formData = new FormData();
   formData.append("file", file[0]);
   return formData;
+}
+
+export function getEdgeColorByLevel(level: number): string {
+  switch (level) {
+    case 0: return 'rgb(59, 130, 246)'; // blue-500
+    case 1: return 'rgb(168, 85, 247)'; // purple-500
+    case 2: return 'rgb(236, 72, 153)'; // pink-500
+    case 3: return 'rgb(234, 179, 8)';  // yellow-500
+    default: return 'rgb(34, 197, 94)'; // green-500
+  }
+}
+
+export function findItemInTree(items: TreeItem[], itemId: string): TreeItem | null {
+  for (const item of items) {
+    if (item.id === itemId) return item;
+    if (item.children) {
+      const found = findItemInTree(item.children, itemId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function removeItemFromTree(items: TreeItem[], itemId: string): TreeItem[] {
+  return items.reduce<TreeItem[]>((acc, item) => {
+    if (item.id === itemId) return acc;
+    
+    if (item.children) {
+      const newChildren = removeItemFromTree(item.children, itemId);
+      acc.push({ ...item, children: newChildren });
+    } else {
+      acc.push(item);
+    }
+    return acc;
+  }, []);
+}
+
+export function insertItemInTree(
+  items: TreeItem[],
+  item: TreeItem,
+  targetId: string,
+  position: 'before' | 'after' | 'inside'
+): TreeItem[] {
+  return items.reduce<TreeItem[]>((acc, current) => {
+    if (current.id === targetId) {
+      if (position === 'before') {
+        acc.push(item, current);
+      } else if (position === 'after') {
+        acc.push(current, item);
+      } else if (position === 'inside') {
+        acc.push({
+          ...current,
+          children: [...(current.children || []), item],
+          isExpanded: true
+        });
+      }
+    } else if (current.children) {
+      acc.push({
+        ...current,
+        children: insertItemInTree(current.children, item, targetId, position)
+      });
+    } else {
+      acc.push(current);
+    }
+    return acc;
+  }, []);
 }
