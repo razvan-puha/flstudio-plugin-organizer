@@ -12,7 +12,6 @@ import {
   monitorForElements,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { reorderWithEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/util/reorder-with-edge";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -21,8 +20,7 @@ import {
   attachClosestEdge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { DropIndicator } from "@/components/ui/drop-indicator";
-import { cn, findItemInTree, removeItemFromTree } from "@/lib/utils";
+import { cn, determineInsertIndex, findItemInTree, removeItemFromTree } from "@/lib/utils";
 import { useTreeViewContext } from "@/contexts/tree-view-context";
 
 export function TreeView({
@@ -36,7 +34,8 @@ export function TreeView({
   const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<
-    { type: "idle" } | { type: "dragging-over"; edge: Edge }
+    | { type: "idle" }
+    | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
   >({ type: "idle" });
 
   const { registerContainer, unregisterContainer, notifyItemRemoved, updateItems, callbacks } = useTreeViewContext();
@@ -99,14 +98,12 @@ export function TreeView({
 
       if (indexOfSource < 0 || indexOfTarget < 0) return;
 
-      const closestEdgeOfTarget = extractClosestEdge(targetData);
-      const newItems = reorderWithEdge({
-        list: items,
-        startIndex: indexOfSource,
-        indexOfTarget,
-        closestEdgeOfTarget,
-        axis: "vertical",
-      });
+      const edge = extractClosestEdge(targetData);
+      const insertIndex = determineInsertIndex(edge, indexOfSource, indexOfTarget, items.length);
+
+      const newItems = [...items];
+      const [movedItem] = newItems.splice(indexOfSource, 1);
+      newItems.splice(insertIndex, 0, movedItem);
       
       setItems(newItems);
     },
@@ -123,14 +120,12 @@ export function TreeView({
 
       if (indexOfSource < 0 || indexOfTarget < 0) return;
 
-      const closestEdgeOfTarget = extractClosestEdge(targetData);
-      const newChildren = reorderWithEdge({
-        list: parentItem.children,
-        startIndex: indexOfSource,
-        indexOfTarget,
-        closestEdgeOfTarget,
-        axis: "vertical",
-      });
+      const edge = extractClosestEdge(targetData);
+      const insertIndex = determineInsertIndex(edge, indexOfSource, indexOfTarget, parentItem.children.length);
+
+      const newChildren = [...parentItem.children];
+      const [movedItem] = newChildren.splice(indexOfSource, 1);
+      newChildren.splice(insertIndex, 0, movedItem);
 
       setItems(items.map((item) => 
         item.id === parentItem.id 
@@ -141,17 +136,111 @@ export function TreeView({
     [items, setItems]
   );
 
+  const getDropPosition = (targetData: TreeItemDragData, edge: Edge | null) => {
+    if (!edge && targetData.data.fileType === 'folder') {
+      return { type: 'inside' as const };
+    }
+    return {
+      type: 'edge' as const,
+      position: edge === 'bottom' ? 'after' as const : 'before' as const
+    };
+  };
+
+  const handleMoveToRoot = useCallback(
+    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
+      setItems(prev => {
+        const sourceItem = findItemInTree(prev, sourceData.id);
+        if (!sourceItem) return prev;
+
+        const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
+        const edge = extractClosestEdge(targetData);
+        const position = edge === 'top' ? 'start' : 'end';
+        
+        return position === 'start' 
+          ? [{ ...sourceItem, parentId: containerId }, ...itemsWithoutSource]
+          : [...itemsWithoutSource, { ...sourceItem, parentId: containerId }];
+      });
+    },
+    [containerId]
+  );
+
+  const handleMoveToParent = useCallback(
+    (sourceItem: TreeItemType, targetData: TreeItemDragData, itemsWithoutSource: TreeItemType[]) => {
+      const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
+      
+      if (dropPosition.type === 'inside') {
+        return itemsWithoutSource.map(item => {
+          if (item.id === targetData.data.id && item.fileType === 'folder') {
+            return {
+              ...item,
+              children: [...(item.children || []), { ...sourceItem, parentId: item.id }],
+              isExpanded: true
+            };
+          }
+          return item;
+        });
+      }
+
+      return itemsWithoutSource;
+    },
+    []
+  );
+
+  const handleMoveToSibling = useCallback(
+    (sourceItem: TreeItemType, targetData: TreeItemDragData, itemsWithoutSource: TreeItemType[], prev: TreeItemType[]) => {
+      const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
+      if (dropPosition.type !== 'edge') return itemsWithoutSource;
+
+      const siblings = prev.filter(i => i.parentId === targetData.data.parentId);
+      const targetIndex = siblings.findIndex(i => i.id === targetData.data.id);
+      const insertIndex = dropPosition.position === 'after' ? targetIndex + 1 : targetIndex;
+      
+      const newSiblings = [...siblings];
+      newSiblings.splice(insertIndex, 0, { ...sourceItem, parentId: targetData.data.parentId });
+      
+      return itemsWithoutSource.map(item => 
+        item.parentId === targetData.data.parentId ? newSiblings.find(s => s.id === item.id) || item : item
+      );
+    },
+    []
+  );
+
   const handleSameContainerMoves = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
+      if (targetData.id === containerId) {
+        handleMoveToRoot(sourceData, targetData);
+        return;
+      }
+
       if (sourceData.data.parentId === targetData.data.parentId) {
         if (sourceData.data.parentId === containerId) {
           handleMovesUnderTheContainer(sourceData, targetData);
         } else {
           handleMovesUnderTheSameParent(sourceData, targetData);
         }
+        return;
       }
+
+      setItems(prev => {
+        const sourceItem = findItemInTree(prev, sourceData.id);
+        if (!sourceItem) return prev;
+
+        const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
+        
+        const withParentMove = handleMoveToParent(sourceItem, targetData, itemsWithoutSource);
+        if (withParentMove !== itemsWithoutSource) return withParentMove;
+
+        return handleMoveToSibling(sourceItem, targetData, itemsWithoutSource, prev);
+      });
     },
-    [containerId, handleMovesUnderTheContainer, handleMovesUnderTheSameParent]
+    [
+      containerId,
+      handleMoveToRoot,
+      handleMovesUnderTheContainer,
+      handleMovesUnderTheSameParent,
+      handleMoveToParent,
+      handleMoveToSibling
+    ]
   );
 
   const handleCrossContainerMoves = useCallback(
@@ -227,6 +316,14 @@ export function TreeView({
 
   const filteredItems = filterItems(items, searchQuery);
 
+  const notifyTreeItemDragState = useCallback((isOver: boolean) => {
+    setDragState(current => 
+      current.type === "dragging-over" 
+        ? { ...current, isOverTreeItem: isOver }
+        : current
+    );
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -240,24 +337,31 @@ export function TreeView({
                  sourceData.data.containerType === type;
         },
         getData({ input }) {
-          return attachClosestEdge(
-            {
+          if (!containerRef.current) throw new Error("Element not found");
+          const data = {
+            id: containerId,
+            type: "tree-item",
+            data: { 
               id: containerId,
-              type: "tree-item",
-              data: { containerId, containerType: type },
+              containerId, 
+              containerType: type,
+              parentId: containerId
             },
-            {
-              element: containerRef.current!,
-              input,
-              allowedEdges: ["top"],
-            }
-          );
+          };
+          return attachClosestEdge(data, {
+            element: containerRef.current,
+            input,
+            allowedEdges: ["top", "bottom"]
+          });
         },
         onDragEnter({ self }) {
           const edge = extractClosestEdge(self.data);
-          if (edge) {
-            setDragState({ type: "dragging-over", edge });
-          }
+          console.log('Container edge:', edge, 'Full data:', self.data);
+          setDragState({ 
+            type: "dragging-over", 
+            edge: edge ?? 'bottom',
+            isOverTreeItem: false 
+          });
         },
         onDragLeave() {
           setDragState({ type: "idle" });
@@ -268,14 +372,28 @@ export function TreeView({
       }),
       monitorForElements({
         canMonitor({ source }) {
-          return source.data.type === "tree-item";
+          const sourceData = source.data as TreeItemDragData;
+          return sourceData.type === "tree-item" && 
+                 sourceData.data.containerType === type;
         },
         onDrop: ({ location, source }) => {
-          const target = location.current.dropTargets[0];
+          // Get the most recent drop target data
+          const dropTargets = location.current.dropTargets;
+          const target = dropTargets[dropTargets.length - 1];  // Get the last (most specific) target
           if (!target) return;
 
+          console.log('TreeView onDrop - all drop targets:', dropTargets);
+          
+          // Try to find a target with edge information
+          const targetWithEdge = dropTargets.find(t => {
+            const data = t.data as TreeItemDragData;
+            return data.edge !== undefined;
+          });
+
           const sourceData = source.data as TreeItemDragData;
-          const targetData = target.data as TreeItemDragData;
+          const targetData = targetWithEdge ? targetWithEdge.data as TreeItemDragData : target.data as TreeItemDragData;
+
+          console.log('TreeView onDrop - using target with edge:', targetWithEdge || target);
 
           if (
             sourceData.type !== "tree-item" ||
@@ -309,24 +427,23 @@ export function TreeView({
         />
         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       </div>
+      <div ref={containerRef} className="absolute inset-0 pointer-events-none">
+        {/* This div will receive drag events for the container */}
+      </div>
       <div
-        ref={containerRef}
-        className="space-y-0.5 overflow-y-auto h-[calc(30vh-5rem)] relative"
-      >
-        {dragState.type === "dragging-over" && (
-          <DropIndicator
-            edge={dragState.edge}
-            gap="8px"
-            color="rgb(249, 115, 22)"
-            level={0}
-          />
+        className={cn(
+          "space-y-1 overflow-y-auto h-[calc(30vh-5rem)] relative p-1",
+          dragState.type === "dragging-over" && !dragState.isOverTreeItem && "bg-orange-600/20 rounded-md"
         )}
+      >
         {filteredItems.map((item) => (
           <TreeItem
             key={item.id}
             item={item}
             level={0}
             onToggle={handleToggle}
+            fileType={item.fileType}
+            onDragStateChange={notifyTreeItemDragState}
           />
         ))}
         {filteredItems.length === 0 && (

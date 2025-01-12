@@ -8,6 +8,7 @@ export interface TreeItem {
   children?: TreeItem[];
   isExpanded?: boolean;
   containerType: ContainerType;
+  fileType: FileType;
 }
 
 export type TreeItemState =
@@ -30,9 +31,11 @@ export type TreeItemDragData = {
   id: string;
   data: TreeItem;
   type: "tree-item";
+  edge?: Edge;
 };
 
 export type ContainerType = "effects" | "generators";
+export type FileType = "folder" | "file";
 
 export interface TreeViewProps {
   items: TreeItem[];

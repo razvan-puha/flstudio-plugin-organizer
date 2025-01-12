@@ -302,6 +302,7 @@ function createTreeItems(
       label: key,
       parentId: containerId,
       containerId: containerId,
+      fileType: "folder",
       children: value.map((plugin) => ({
         id: `${folderId}-${plugin}`,
         label: plugin,
@@ -309,6 +310,7 @@ function createTreeItems(
         containerId: containerId,
         isExpanded: false,
         containerType: type,
+        fileType: "file",
       })),
       isExpanded: false,
       containerType: type,
