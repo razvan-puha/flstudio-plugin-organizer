@@ -184,8 +184,8 @@ export function TreeView({
       const newSiblings = [...siblings];
       newSiblings.splice(insertIndex, 0, { ...sourceItem, parentId: targetData.data.parentId });
       
-      return itemsWithoutSource.map(item => 
-        item.parentId === targetData.data.parentId ? newSiblings.find(s => s.id === item.id) || item : item
+      return newSiblings.map(item => 
+        item.parentId === targetData.data.parentId ? itemsWithoutSource.find(s => s.id === item.id) || item : item
       );
     },
     []
@@ -354,7 +354,6 @@ export function TreeView({
         },
         onDragEnter({ self }) {
           const edge = extractClosestEdge(self.data);
-          console.log('Container edge:', edge, 'Full data:', self.data);
           setDragState({ 
             type: "dragging-over", 
             edge: edge ?? 'bottom',
@@ -380,8 +379,6 @@ export function TreeView({
           const target = dropTargets[dropTargets.length - 1];  // Get the last (most specific) target
           if (!target) return;
 
-          console.log('TreeView onDrop - all drop targets:', dropTargets);
-          
           // Try to find a target with edge information
           const targetWithEdge = dropTargets.find(t => {
             const data = t.data as TreeItemDragData;
@@ -391,9 +388,8 @@ export function TreeView({
           const sourceData = source.data as TreeItemDragData;
           const targetData = targetWithEdge ? targetWithEdge.data as TreeItemDragData : target.data as TreeItemDragData;
 
-          console.log('TreeView onDrop - using target with edge:', targetWithEdge || target);
-
           if (
+            sourceData.id === targetData.id ||
             sourceData.type !== "tree-item" ||
             targetData.type !== "tree-item" ||
             sourceData.data.containerType !== targetData.data.containerType
