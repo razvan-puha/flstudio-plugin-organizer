@@ -122,9 +122,7 @@ export function TreeItem({
           // Then check other conditions
           if (
             sourceData.id === innerItem.id || 
-            sourceData.data.parentId === innerItem.id || 
-            (sourceData.data.parentId === innerItem.parentId && 
-             sourceData.data.containerId === innerItem.containerId)
+            sourceData.data.parentId === innerItem.id 
           ) {
             return false;
           }
@@ -258,7 +256,6 @@ export function TreeItem({
           ref={folderDropRef}
           className={cn(
             "relative px-1 py-1.5 rounded-md",
-            fileType === "folder" && "hover:bg-accent/50",
             // Show folder drop highlight
             fileType === "folder" && 
             state.type === "is-dragging-over" && 
