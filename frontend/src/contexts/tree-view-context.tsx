@@ -69,22 +69,26 @@ export function TreeViewProvider({ children }: Readonly<{ children: React.ReactN
     dispatch({ type: 'UNREGISTER_CONTAINER', id });
   }, []);
 
-  const updateItems = useCallback((containerId: string, items: TreeItem[]) => {
-    dispatch({ type: 'UPDATE_ITEMS', containerId, items });
-  }, []);
-
   const notifyItemRemoved = useCallback((sourceContainerId: string, item: TreeItem) => {
     dispatch({ type: 'NOTIFY_ITEM_REMOVED', sourceContainerId, item });
   }, []);
 
+  const updateContainer = useCallback((containerId: string, updater: (items: TreeItem[]) => TreeItem[]) => {
+    dispatch({ 
+      type: 'UPDATE_ITEMS', 
+      containerId, 
+      items: updater(state.items[containerId] || [])
+    });
+  }, [state.items]);
+
   const value = useMemo(() => ({
     registerContainer,
     unregisterContainer,
-    updateItems,
+    updateContainer,
     notifyItemRemoved,
     getItems: (containerId: string) => state.items[containerId] || [],
     callbacks: state.callbacks
-  }), [registerContainer, unregisterContainer, updateItems, notifyItemRemoved, state.items, state.callbacks]);
+  }), [registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, state.items, state.callbacks]);
 
   return (
     <TreeViewContext.Provider value={value}>

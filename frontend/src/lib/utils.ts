@@ -106,3 +106,19 @@ export function determineInsertIndex(edge: Edge | null, sourceIndex: number, tar
 
   return targetIndex;
 }
+
+export function areArraysEqual<T>(arr1: T[], arr2: T[], comparator: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+  if (arr1.length !== arr2.length) return false;
+  
+  return arr1.every((item, index) => comparator(item, arr2[index]));
+}
+
+// Specific comparator for TreeItems
+export function areTreeItemsEqual(a: TreeItem, b: TreeItem): boolean {
+  return a.id === b.id && 
+         a.parentId === b.parentId && 
+         a.containerId === b.containerId &&
+         a.containerType === b.containerType &&
+         a.fileType === b.fileType &&
+         a.label === b.label;
+}

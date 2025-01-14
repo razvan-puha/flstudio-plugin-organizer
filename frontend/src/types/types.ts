@@ -11,21 +11,12 @@ export interface TreeItem {
   fileType: FileType;
 }
 
-export type TreeItemState =
-  | {
-      type: "idle";
-    }
-  | {
-      type: "preview";
-      container: HTMLElement;
-    }
-  | {
-      type: "is-dragging";
-    }
-  | {
-      type: "is-dragging-over";
-      closestEdge: Edge | null;
-    };
+export type TreeItemState = {
+    type: "idle" | "preview" | "is-dragging" | "is-dragging-over";
+    container?: HTMLElement;
+    closestEdge?: Edge | null;
+    activeDropTarget?: 'edge' | 'folder';
+}
 
 export type TreeItemDragData = {
   id: string;
@@ -62,7 +53,7 @@ export type VendorPlugins = {
 export interface TreeViewContextType {
   registerContainer: (id: string, callbacks: TreeViewCallbacks, items: TreeItem[]) => void;
   unregisterContainer: (id: string) => void;
-  updateItems: (containerId: string, items: TreeItem[]) => void;
+  updateContainer: (containerId: string, updater: (items: TreeItem[]) => TreeItem[]) => void;
   notifyItemRemoved: (containerId: string, item: TreeItem) => void;
   getItems: (containerId: string) => TreeItem[];
   callbacks: Record<string, TreeViewCallbacks>;

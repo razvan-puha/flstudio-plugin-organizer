@@ -20,7 +20,7 @@ import {
   attachClosestEdge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { cn, determineInsertIndex, findItemInTree, removeItemFromTree } from "@/lib/utils";
+import { cn, determineInsertIndex, findItemInTree, removeItemFromTree, areArraysEqual, areTreeItemsEqual } from "@/lib/utils";
 import { useTreeViewContext } from "@/contexts/tree-view-context";
 
 export function TreeView({
@@ -38,16 +38,7 @@ export function TreeView({
     | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
   >({ type: "idle" });
 
-  const { registerContainer, unregisterContainer, notifyItemRemoved, updateItems, callbacks } = useTreeViewContext();
-
-  useEffect(() => {
-    setItems(initialItems);
-  }, [initialItems]);
-
-  useEffect(() => {
-    updateItems(containerId, items);
-    onItemsChange?.(items);
-  }, [items, containerId, updateItems, onItemsChange]);
+  const { registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, callbacks } = useTreeViewContext();
 
   const addItem = useCallback(
     (item: TreeItemType, targetId?: string, position?: 'before' | 'after') => {
@@ -90,6 +81,15 @@ export function TreeView({
     registerContainer(containerId, containerCallbacks, items);
     return () => unregisterContainer(containerId);
   }, [containerId, containerCallbacks, items, registerContainer, unregisterContainer]);
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  useEffect(() => {
+    updateContainer(containerId, () => items);
+    onItemsChange?.(items);
+  }, [items, containerId, updateContainer, onItemsChange]);
 
   const handleMovesUnderTheContainer = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
@@ -146,24 +146,6 @@ export function TreeView({
     };
   };
 
-  const handleMoveToRoot = useCallback(
-    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      setItems(prev => {
-        const sourceItem = findItemInTree(prev, sourceData.id);
-        if (!sourceItem) return prev;
-
-        const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
-        const edge = extractClosestEdge(targetData);
-        const position = edge === 'top' ? 'start' : 'end';
-        
-        return position === 'start' 
-          ? [{ ...sourceItem, parentId: containerId }, ...itemsWithoutSource]
-          : [...itemsWithoutSource, { ...sourceItem, parentId: containerId }];
-      });
-    },
-    [containerId]
-  );
-
   const handleMoveToParent = useCallback(
     (sourceItem: TreeItemType, targetData: TreeItemDragData, itemsWithoutSource: TreeItemType[]) => {
       const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
@@ -171,11 +153,15 @@ export function TreeView({
       if (dropPosition.type === 'inside') {
         return itemsWithoutSource.map(item => {
           if (item.id === targetData.data.id && item.fileType === 'folder') {
-            return {
-              ...item,
-              children: [...(item.children || []), { ...sourceItem, parentId: item.id }],
-              isExpanded: true
-            };
+            const newChildren = [...(item.children || []), { ...sourceItem, parentId: item.id }];
+            
+            if (!areArraysEqual(item.children || [], newChildren, areTreeItemsEqual)) {
+              return {
+                ...item,
+                children: newChildren,
+                isExpanded: true
+              };
+            }
           }
           return item;
         });
@@ -208,7 +194,18 @@ export function TreeView({
   const handleSameContainerMoves = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
       if (targetData.id === containerId) {
-        handleMoveToRoot(sourceData, targetData);
+        updateContainer(containerId, (items) => {
+          const sourceItem = findItemInTree(items, sourceData.id);
+          if (!sourceItem) return items;
+          
+          const itemsWithoutSource = removeItemFromTree(items, sourceData.id);
+          const edge = extractClosestEdge(targetData);
+          const position = edge === 'top' ? 'start' : 'end';
+          
+          return position === 'start' 
+            ? [{ ...sourceItem, parentId: containerId }, ...itemsWithoutSource]
+            : [...itemsWithoutSource, { ...sourceItem, parentId: containerId }];
+        });
         return;
       }
 
@@ -221,35 +218,39 @@ export function TreeView({
         return;
       }
 
+      // This algorithm handles moving items within the same container but to different parents
       setItems(prev => {
+        // First find the item being dragged by its ID
         const sourceItem = findItemInTree(prev, sourceData.id);
-        if (!sourceItem) return prev;
+        if (!sourceItem) return prev; // If not found, make no changes
 
+        // Remove the dragged item from its current position
         const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
         
+        // Try to move the item to the target as a child (into a folder)
         const withParentMove = handleMoveToParent(sourceItem, targetData, itemsWithoutSource);
-        if (withParentMove !== itemsWithoutSource) return withParentMove;
+        // If the parent move was successful (arrays are different), return the new tree
+        if (!areArraysEqual(withParentMove, itemsWithoutSource, areTreeItemsEqual)) return withParentMove;
 
+        // If parent move wasn't applicable, try moving as a sibling instead
+        // This handles moving items before/after other items at the same level
         return handleMoveToSibling(sourceItem, targetData, itemsWithoutSource, prev);
       });
     },
-    [
-      containerId,
-      handleMoveToRoot,
-      handleMovesUnderTheContainer,
-      handleMovesUnderTheSameParent,
-      handleMoveToParent,
-      handleMoveToSibling
-    ]
+    [containerId, handleMoveToParent, handleMoveToSibling, handleMovesUnderTheContainer, handleMovesUnderTheSameParent, updateContainer]
   );
 
   const handleCrossContainerMoves = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      const sourceItem = findItemInTree(items, sourceData.id);
-      if (!sourceItem) return;
+      updateContainer(containerId, items => 
+        removeItemFromTree(items, sourceData.id)
+      );
 
       const targetCallbacks = callbacks[targetData.data.containerId];
       if (!targetCallbacks) return;
+
+      const sourceItem = findItemInTree(items, sourceData.id);
+      if (!sourceItem) return;
 
       const newItem = {
         ...sourceItem,
@@ -261,12 +262,9 @@ export function TreeView({
 
       const edge = extractClosestEdge(targetData);
       const position = edge === 'top' ? 'before' : 'after';
-
-      // Add to target container with position
       targetCallbacks.addItem(newItem, targetData.id, position);
-      setItems(prev => removeItemFromTree(prev, sourceData.id));
     },
-    [items, callbacks]
+    [containerId, items, callbacks, updateContainer]
   );
 
   const handleToggle = useCallback(

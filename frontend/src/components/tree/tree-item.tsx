@@ -31,6 +31,22 @@ interface TreeItemProps {
   onDragStateChange?: (isOver: boolean) => void;
 }
 
+const EDGE_THRESHOLD = 8; // pixels from the edge
+
+function getDropType(element: HTMLElement, location: { clientX: number; clientY: number }) {
+  const rect = element.getBoundingClientRect();
+  const distanceFromTop = Math.abs(location.clientY - rect.top);
+  const distanceFromBottom = Math.abs(location.clientY - rect.bottom);
+  
+  // If we're close to either edge, it's an edge drop
+  if (distanceFromTop <= EDGE_THRESHOLD || distanceFromBottom <= EDGE_THRESHOLD) {
+    return 'edge';
+  }
+  
+  // Otherwise it's a folder drop
+  return 'folder';
+}
+
 export function TreeItem({
   item,
   level,
@@ -56,15 +72,16 @@ export function TreeItem({
 
   const edgeDropRef = useRef<HTMLDivElement>(null);
   const folderDropRef = useRef<HTMLDivElement>(null);
+  const draggableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!edgeDropRef.current || !folderDropRef.current) return;
+    if (!edgeDropRef.current || !folderDropRef.current || !draggableRef.current) return;
 
     const cleanup = combine(
       // Draggable config for the folder drop target
       draggable({
-        element: folderDropRef.current,
-        dragHandle: folderDropRef.current,
+        element: draggableRef.current,
+        dragHandle: draggableRef.current,
         getInitialData: getItemData,
         onDragStart() {
           setState({ type: "is-dragging" });
@@ -89,17 +106,45 @@ export function TreeItem({
       dropTargetForElements({
         element: folderDropRef.current,
         getIsSticky: () => true,
-        canDrop({ source }) {
-          if (source.element === folderDropRef.current) return false;
-          const sourceData = source.data as TreeItemDragData;
-          if (innerItem.children?.some((child) => child.id === sourceData.id))
+        canDrop({ source, input }) {
+          if (!folderDropRef.current) return false;
+          
+          // Don't allow folder drops if edge drop is active
+          if (state.type === "is-dragging-over" && state.activeDropTarget === 'edge') {
             return false;
-          return source.data.type === "tree-item" && fileType === "folder";
+          }
+
+          const dropType = getDropType(folderDropRef.current, input);
+          if (dropType !== 'folder') return false;
+
+          const sourceData = source.data as TreeItemDragData;
+          
+          // Then check other conditions
+          if (
+            sourceData.id === innerItem.id || 
+            sourceData.data.parentId === innerItem.id || 
+            (sourceData.data.parentId === innerItem.parentId && 
+             sourceData.data.containerId === innerItem.containerId)
+          ) {
+            return false;
+          }
+
+          // Only allow dropping into folders
+          return sourceData.type === "tree-item" && fileType === "folder";
         },
         getData: getItemData,
-        onDragEnter() {
-          setState({ type: "is-dragging-over", closestEdge: null });
-          onDragStateChange?.(true);
+        onDragEnter({ location }) {
+          if (!folderDropRef.current) return;
+          
+          const dropType = getDropType(folderDropRef.current, location.current.input);
+          if (dropType === 'folder') {
+            setState({ 
+              type: "is-dragging-over", 
+              closestEdge: null,
+              activeDropTarget: 'folder'
+            });
+            onDragStateChange?.(true);
+          }
         },
         onDragLeave() {
           setState({ type: "idle" });
@@ -113,9 +158,21 @@ export function TreeItem({
       dropTargetForElements({
         element: edgeDropRef.current,
         getIsSticky: () => true,
-        canDrop({ source }) {
-          if (source.element === folderDropRef.current) return false;
-          return source.data.type === "tree-item";
+        canDrop({ source, input }) {
+          if (!edgeDropRef.current) return false;
+          
+          // Don't allow edge drops if folder drop is active
+          if (state.type === "is-dragging-over" && state.activeDropTarget === 'folder') {
+            return false;
+          }
+
+          const dropType = getDropType(edgeDropRef.current, input);
+          if (dropType !== 'edge') return false;
+
+          const sourceData = source.data as TreeItemDragData;
+          
+          // Allow any tree item (file or folder) to be dropped at edges
+          return sourceData.type === "tree-item";
         },
         getData({ input }) {
           if (!edgeDropRef.current) throw new Error("Element not found");
@@ -127,19 +184,19 @@ export function TreeItem({
           });
 
           const edge = extractClosestEdge(data);
-          
-          // Add edge information in a serializable way
           return {
             ...itemData,
-            edge: edge,
-            ...data
+            edge,
+            ...data,
           };
         },
         onDragEnter({ self }) {
           const closestEdge = extractClosestEdge(self.data);
-        //   console.log('TreeItem onDragEnter - full data:', self.data);
-        //   console.log('TreeItem onDragEnter - edge:', closestEdge);
-          setState({ type: "is-dragging-over", closestEdge });
+          setState({
+            type: "is-dragging-over",
+            closestEdge,
+            activeDropTarget: 'edge'
+          });
         },
         onDragLeave() {
           setState({ type: "idle" });
@@ -151,7 +208,7 @@ export function TreeItem({
     );
 
     return cleanup;
-  }, [fileType, getItemData, innerItem, onDragStateChange]);
+  }, [fileType, getItemData, innerItem, onDragStateChange, state.activeDropTarget, state.type]);
 
   const Icon = fileType === "folder" ? FolderIcon : FileIcon;
 
@@ -171,31 +228,47 @@ export function TreeItem({
   };
 
   return (
-    <div className="my-2" ref={edgeDropRef}>
-      {state.type === "is-dragging-over" && state.closestEdge && (
-        <DropIndicator
-          edge={state.closestEdge}
-          gap={"1rem"}
-          color={getEdgeColorByLevel(level)}
-          level={level}
-        />
-      )}
-      <div className="relative my-1">
-        <div ref={folderDropRef} className="relative px-1 py-0.5">
-          {fileType === "folder" && (
-            <div
-              className={cn(
-                "absolute inset-0 rounded-md transition-colors duration-200 pointer-events-none",
-                state.type === "is-dragging-over" &&
-                  !state.closestEdge &&
-                  "bg-orange-500/20"
-              )}
-            />
-          )}
+    <div className="group relative">
+      {/* Edge drop zone at the top */}
+      <div 
+        className="absolute inset-x-0 h-2 -top-1" 
+        ref={edgeDropRef}
+      >
+        {state.type === "is-dragging-over" && 
+         state.activeDropTarget === 'edge' && 
+         state.closestEdge && (
+          <DropIndicator
+            edge={state.closestEdge}
+            gap={"0.5rem"}
+            color={getEdgeColorByLevel(level)}
+            level={level}
+          />
+        )}
+      </div>
 
+      {/* Main content area - draggable and folder drop target */}
+      <div 
+        ref={draggableRef}
+        className={cn(
+          "relative",
+          "my-1", // Add spacing between items
+        )}
+      >
+        <div
+          ref={folderDropRef}
+          className={cn(
+            "relative px-1 py-1.5 rounded-md",
+            fileType === "folder" && "hover:bg-accent/50",
+            // Show folder drop highlight
+            fileType === "folder" && 
+            state.type === "is-dragging-over" && 
+            state.activeDropTarget === 'folder' && 
+            "bg-orange-500/20 ring-2 ring-orange-500/40"
+          )}
+        >
           <div
             className={cn(
-              "flex items-center gap-2 px-2 py-1.5 rounded-md select-none relative z-10",
+              "flex items-center gap-2 px-2 py-1.5 rounded-md select-none",
               "transition-colors duration-200",
               getLevelPadding(level),
               "hover:bg-accent",
@@ -224,7 +297,7 @@ export function TreeItem({
 
         {/* Children */}
         {innerItem.isExpanded && innerItem.children && (
-          <div className="pt-1">
+          <div className="pt-1 pl-4">
             {innerItem.children.map((child) => (
               <TreeItem
                 key={child.id}
@@ -239,7 +312,7 @@ export function TreeItem({
         )}
       </div>
       {/* Preview portal */}
-      {state.type === "preview"
+      {state.type === "preview" && state.container
         ? createPortal(<DragPreview item={innerItem} />, state.container)
         : null}
     </div>
