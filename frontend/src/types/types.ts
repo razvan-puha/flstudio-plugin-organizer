@@ -34,6 +34,8 @@ export interface TreeViewProps {
   className?: string;
   containerId: string;
   type: ContainerType;
+  title: string;
+  showViewOperations: boolean;
 }
 
 export interface PluginTreeList {

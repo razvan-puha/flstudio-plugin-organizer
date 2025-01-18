@@ -13,7 +13,7 @@ import {
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, Download, Upload, FolderPlus } from "lucide-react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   Edge,
@@ -28,6 +28,7 @@ import {
   areTreeItemsEqual,
 } from "@/lib/utils";
 import { useTreeViewContext } from "@/contexts/tree-view-context";
+import { Button } from "@/components/ui/button";
 
 export function TreeView({
   items: initialItems,
@@ -35,6 +36,8 @@ export function TreeView({
   className,
   containerId,
   type,
+  title,
+  showViewOperations,
 }: Readonly<TreeViewProps>) {
   const [items, setItems] = useState(initialItems);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +46,7 @@ export function TreeView({
     | { type: "idle" }
     | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
   >({ type: "idle" });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     registerContainer,
@@ -139,28 +143,40 @@ export function TreeView({
       targetData: TreeItemDragData,
       itemsWithoutSource: TreeItemType[]
     ) => {
-      const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
+      const dropPosition = getDropPosition(
+        targetData,
+        extractClosestEdge(targetData)
+      );
 
       if (dropPosition.type === "inside") {
         // Function to update children recursively
-        const updateChildrenInTree = (items: TreeItemType[], targetId: string): TreeItemType[] => {
-          return items.map(item => {
+        const updateChildrenInTree = (
+          items: TreeItemType[],
+          targetId: string
+        ): TreeItemType[] => {
+          return items.map((item) => {
             if (item.id === targetId && item.fileType === "folder") {
               // Add the source item as a child of the target folder
-              const newChildren = [...item.children, { 
-                ...sourceItem, 
-                parentId: item.id,
-                containerId: item.containerId 
-              }];
+              const newChildren = [
+                ...item.children,
+                {
+                  ...sourceItem,
+                  parentId: item.id,
+                  containerId: item.containerId,
+                },
+              ];
 
               return {
                 ...item,
                 children: newChildren,
-                isExpanded: false
+                isExpanded: false,
               };
             }
             if (item.children.length > 0) {
-              return { ...item, children: updateChildrenInTree(item.children, targetId) };
+              return {
+                ...item,
+                children: updateChildrenInTree(item.children, targetId),
+              };
             }
             return item;
           });
@@ -188,13 +204,24 @@ export function TreeView({
       if (dropPosition.type !== "edge") return itemsWithoutSource;
 
       // Function to update children recursively
-      const updateChildrenInTree = (items: TreeItemType[], parentId: string, newChildren: TreeItemType[]): TreeItemType[] => {
-        return items.map(item => {
+      const updateChildrenInTree = (
+        items: TreeItemType[],
+        parentId: string,
+        newChildren: TreeItemType[]
+      ): TreeItemType[] => {
+        return items.map((item) => {
           if (item.id === parentId) {
             return { ...item, children: newChildren };
           }
           if (item.children.length > 0) {
-            return { ...item, children: updateChildrenInTree(item.children, parentId, newChildren) };
+            return {
+              ...item,
+              children: updateChildrenInTree(
+                item.children,
+                parentId,
+                newChildren
+              ),
+            };
           }
           return item;
         });
@@ -203,7 +230,7 @@ export function TreeView({
       // Find the parent item to get correct siblings
       const targetParentId = targetData.data.parentId;
       const parent = findItemInTree(itemsWithoutSource, targetParentId);
-      
+
       // Get the correct siblings array
       let siblings: TreeItemType[];
       if (targetParentId === targetData.data.containerId) {
@@ -217,12 +244,15 @@ export function TreeView({
       }
 
       // Create new siblings array with inserted item
-      const targetIndex = siblings.findIndex(i => i.id === targetData.data.id);
-      const insertIndex = dropPosition.position === "after" ? targetIndex + 1 : targetIndex;
+      const targetIndex = siblings.findIndex(
+        (i) => i.id === targetData.data.id
+      );
+      const insertIndex =
+        dropPosition.position === "after" ? targetIndex + 1 : targetIndex;
       const newSiblings = [...siblings];
       newSiblings.splice(insertIndex, 0, {
         ...sourceItem,
-        parentId: targetParentId
+        parentId: targetParentId,
       });
 
       // If we're at root level, return the new array directly
@@ -231,7 +261,11 @@ export function TreeView({
       }
 
       // Otherwise, update the parent's children in the tree
-      return updateChildrenInTree(itemsWithoutSource, targetParentId, newSiblings);
+      return updateChildrenInTree(
+        itemsWithoutSource,
+        targetParentId,
+        newSiblings
+      );
     },
     []
   );
@@ -262,11 +296,7 @@ export function TreeView({
 
         // If parent move wasn't applicable, try moving as a sibling instead
         // This handles moving items before/after other items at the same level
-        return handleMoveToSibling(
-          sourceItem,
-          targetData,
-          itemsWithoutSource
-        );
+        return handleMoveToSibling(sourceItem, targetData, itemsWithoutSource);
       });
     },
     [handleMoveToParent, handleMoveToSibling]
@@ -457,44 +487,146 @@ export function TreeView({
     setItems,
   ]);
 
+  const handleDownload = () => {
+    const dataStr = JSON.stringify(items, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tree-structure-${containerId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsedData = JSON.parse(content) as TreeItemType[];
+        setItems(parsedData);
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAddFolder = () => {
+    const newFolder: TreeItemType = {
+      id: crypto.randomUUID(),
+      label: "New Folder",
+      parentId: containerId,
+      containerId: containerId,
+      containerType: type,
+      fileType: "folder",
+      children: [],
+      isExpanded: false,
+    };
+    setItems((prev) => [...prev, newFolder]);
+  };
+
   return (
-    <Card className={cn("p-4 w-full max-w-md h-[30vh]", className)}>
-      <div className="mb-4 relative">
-        <Input
-          type="text"
-          placeholder="Search items..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
-        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      </div>
-      <div ref={containerRef} className="absolute inset-0 pointer-events-none">
-        {/* This div will receive drag events for the container */}
-      </div>
-      <div
-        className={cn(
-          "space-y-1 overflow-y-auto h-[calc(30vh-5rem)] relative p-1",
-          dragState.type === "dragging-over" &&
-            !dragState.isOverTreeItem &&
-            "bg-orange-600/20 rounded-md"
-        )}
-      >
-        {filteredItems.map((item) => (
-          <TreeItem
-            key={item.id}
-            item={item}
-            level={0}
-            onToggle={handleToggle}
-            fileType={item.fileType}
-            onDragStateChange={notifyTreeItemDragState}
+    <Card
+      className={cn(
+        "flex flex-col w-full max-w-md h-[30vh] min-h-[300px]",
+        className
+      )}
+    >
+      <div className="shrink-0 p-4 pb-2">
+        <div className="h-8 flex items-center justify-between mb-4 pb-2 border-b">
+          <h2 className="text-sm font-medium truncate" title={title}>
+            {title || type}
+          </h2>
+
+          {showViewOperations && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDownload}
+                title="Download current structure as JSON"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload structure from JSON file"
+              >
+                <Upload className="h-4 w-4" />
+              </Button>
+              <Input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleUpload}
+                accept="application/json"
+                className="hidden"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleAddFolder}
+                title="Add new folder to root level"
+              >
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="h-10 relative">
+          <Input
+            type="text"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-full"
           />
-        ))}
-        {filteredItems.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground">
-            No items found
-          </div>
-        )}
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 p-4 pt-0 relative">
+        <div
+          ref={containerRef}
+          className="absolute inset-0 pointer-events-none"
+        />
+        <div
+          className={cn(
+            "h-full overflow-y-auto px-1",
+            dragState.type === "dragging-over" &&
+              !dragState.isOverTreeItem &&
+              "bg-orange-600/20 rounded-md"
+          )}
+        >
+          {filteredItems.map((item) => (
+            <TreeItem
+              key={item.id}
+              item={item}
+              level={0}
+              onToggle={handleToggle}
+              fileType={item.fileType}
+              onDragStateChange={notifyTreeItemDragState}
+            />
+          ))}
+          {filteredItems.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              No items found
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );

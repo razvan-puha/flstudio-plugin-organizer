@@ -248,12 +248,16 @@ export default function Home() {
                     items={pluginList?.effects ?? []}
                     containerId={DEFAULT_EFFECTS_CONTAINER_ID}
                     type="effects"
+                    title="Effects default structure"
+                    showViewOperations={false}
                   />
                   <TreeView
                     items={[]}
                     className="ml-4"
                     containerId={ORGANIZED_EFFECTS_CONTAINER_ID}
                     type="effects"
+                    title="Effects final structure"
+                    showViewOperations={true}
                   />
                 </div>
                 <div className="w-full flex flex-row items-start mt-10">
@@ -261,12 +265,16 @@ export default function Home() {
                     items={pluginList?.generators ?? []}
                     containerId={DEFAULT_GENERATORS_CONTAINER_ID}
                     type="generators"
+                    title="Generators default structure"
+                    showViewOperations={false}
                   />
                   <TreeView
                     items={[]}
                     className="ml-4"
                     containerId={ORGANIZED_GENERATORS_CONTAINER_ID}
                     type="generators"
+                    title="Generators final structure"
+                    showViewOperations={true}
                   />
                 </div>
               </>
