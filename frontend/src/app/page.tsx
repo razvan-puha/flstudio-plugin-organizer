@@ -311,6 +311,7 @@ function createTreeItems(
         isExpanded: false,
         containerType: type,
         fileType: "file",
+        children: [],
       })),
       isExpanded: false,
       containerType: type,

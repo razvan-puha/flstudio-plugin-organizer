@@ -20,7 +20,13 @@ import {
   attachClosestEdge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { cn, determineInsertIndex, findItemInTree, removeItemFromTree, areArraysEqual, areTreeItemsEqual } from "@/lib/utils";
+import {
+  cn,
+  findItemInTree,
+  removeItemFromTree,
+  areArraysEqual,
+  areTreeItemsEqual,
+} from "@/lib/utils";
 import { useTreeViewContext } from "@/contexts/tree-view-context";
 
 export function TreeView({
@@ -38,23 +44,40 @@ export function TreeView({
     | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
   >({ type: "idle" });
 
-  const { registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, callbacks } = useTreeViewContext();
+  const {
+    registerContainer,
+    unregisterContainer,
+    updateContainer,
+    notifyItemRemoved,
+    callbacks,
+  } = useTreeViewContext();
 
   const addItem = useCallback(
-    (item: TreeItemType, targetId?: string, position?: 'before' | 'after') => {
+    (item: TreeItemType, targetId?: string, position?: "before" | "after") => {
       setItems((prev) => {
         if (!targetId) {
-          return [...prev, { ...item, parentId: containerId, containerType: type }];
+          return [
+            ...prev,
+            { ...item, parentId: containerId, containerType: type },
+          ];
         }
 
-        const targetIndex = prev.findIndex(i => i.id === targetId);
+        const targetIndex = prev.findIndex((i) => i.id === targetId);
         if (targetIndex === -1) {
-          return [...prev, { ...item, parentId: containerId, containerType: type }];
+          return [
+            ...prev,
+            { ...item, parentId: containerId, containerType: type },
+          ];
         }
 
         const newItems = [...prev];
-        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-        newItems.splice(insertIndex, 0, { ...item, parentId: containerId, containerType: type });
+        const insertIndex =
+          position === "before" ? targetIndex : targetIndex + 1;
+        newItems.splice(insertIndex, 0, {
+          ...item,
+          parentId: containerId,
+          containerType: type,
+        });
         return newItems;
       });
     },
@@ -72,15 +95,24 @@ export function TreeView({
     [items, containerId, notifyItemRemoved]
   );
 
-  const containerCallbacks = useMemo(() => ({
-    addItem,
-    removeItem
-  }), [addItem, removeItem]);
+  const containerCallbacks = useMemo(
+    () => ({
+      addItem,
+      removeItem,
+    }),
+    [addItem, removeItem]
+  );
 
   useEffect(() => {
     registerContainer(containerId, containerCallbacks, items);
     return () => unregisterContainer(containerId);
-  }, [containerId, containerCallbacks, items, registerContainer, unregisterContainer]);
+  }, [
+    containerId,
+    containerCallbacks,
+    items,
+    registerContainer,
+    unregisterContainer,
+  ]);
 
   useEffect(() => {
     setItems(initialItems);
@@ -91,80 +123,51 @@ export function TreeView({
     onItemsChange?.(items);
   }, [items, containerId, updateContainer, onItemsChange]);
 
-  const handleMovesUnderTheContainer = useCallback(
-    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      const indexOfSource = items.findIndex((item) => item.id === sourceData.id);
-      const indexOfTarget = items.findIndex((item) => item.id === targetData.id);
-
-      if (indexOfSource < 0 || indexOfTarget < 0) return;
-
-      const edge = extractClosestEdge(targetData);
-      const insertIndex = determineInsertIndex(edge, indexOfSource, indexOfTarget, items.length);
-
-      const newItems = [...items];
-      const [movedItem] = newItems.splice(indexOfSource, 1);
-      newItems.splice(insertIndex, 0, movedItem);
-      
-      setItems(newItems);
-    },
-    [items, setItems]
-  );
-
-  const handleMovesUnderTheSameParent = useCallback(
-    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      const parentItem = items.find((item) => item.id === sourceData.data.parentId);
-      if (!parentItem?.children) return;
-
-      const indexOfSource = parentItem.children.findIndex((item) => item.id === sourceData.id);
-      const indexOfTarget = parentItem.children.findIndex((item) => item.id === targetData.id);
-
-      if (indexOfSource < 0 || indexOfTarget < 0) return;
-
-      const edge = extractClosestEdge(targetData);
-      const insertIndex = determineInsertIndex(edge, indexOfSource, indexOfTarget, parentItem.children.length);
-
-      const newChildren = [...parentItem.children];
-      const [movedItem] = newChildren.splice(indexOfSource, 1);
-      newChildren.splice(insertIndex, 0, movedItem);
-
-      setItems(items.map((item) => 
-        item.id === parentItem.id 
-          ? { ...item, children: newChildren }
-          : item
-      ));
-    },
-    [items, setItems]
-  );
-
   const getDropPosition = (targetData: TreeItemDragData, edge: Edge | null) => {
-    if (!edge && targetData.data.fileType === 'folder') {
-      return { type: 'inside' as const };
+    if (!edge && targetData.data.fileType === "folder") {
+      return { type: "inside" as const };
     }
     return {
-      type: 'edge' as const,
-      position: edge === 'bottom' ? 'after' as const : 'before' as const
+      type: "edge" as const,
+      position: edge === "bottom" ? ("after" as const) : ("before" as const),
     };
   };
 
   const handleMoveToParent = useCallback(
-    (sourceItem: TreeItemType, targetData: TreeItemDragData, itemsWithoutSource: TreeItemType[]) => {
+    (
+      sourceItem: TreeItemType,
+      targetData: TreeItemDragData,
+      itemsWithoutSource: TreeItemType[]
+    ) => {
       const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
-      
-      if (dropPosition.type === 'inside') {
-        return itemsWithoutSource.map(item => {
-          if (item.id === targetData.data.id && item.fileType === 'folder') {
-            const newChildren = [...(item.children || []), { ...sourceItem, parentId: item.id }];
-            
-            if (!areArraysEqual(item.children || [], newChildren, areTreeItemsEqual)) {
+
+      if (dropPosition.type === "inside") {
+        // Function to update children recursively
+        const updateChildrenInTree = (items: TreeItemType[], targetId: string): TreeItemType[] => {
+          return items.map(item => {
+            if (item.id === targetId && item.fileType === "folder") {
+              // Add the source item as a child of the target folder
+              const newChildren = [...item.children, { 
+                ...sourceItem, 
+                parentId: item.id,
+                containerId: item.containerId 
+              }];
+
               return {
                 ...item,
                 children: newChildren,
-                isExpanded: true
+                isExpanded: false
               };
             }
-          }
-          return item;
-        });
+            if (item.children.length > 0) {
+              return { ...item, children: updateChildrenInTree(item.children, targetId) };
+            }
+            return item;
+          });
+        };
+
+        // Update the tree recursively
+        return updateChildrenInTree(itemsWithoutSource, targetData.data.id);
       }
 
       return itemsWithoutSource;
@@ -173,76 +176,105 @@ export function TreeView({
   );
 
   const handleMoveToSibling = useCallback(
-    (sourceItem: TreeItemType, targetData: TreeItemDragData, itemsWithoutSource: TreeItemType[], prev: TreeItemType[]) => {
-      const dropPosition = getDropPosition(targetData, extractClosestEdge(targetData));
-      if (dropPosition.type !== 'edge') return itemsWithoutSource;
-
-      const siblings = prev.filter(i => i.parentId === targetData.data.parentId);
-      const targetIndex = siblings.findIndex(i => i.id === targetData.data.id);
-      const insertIndex = dropPosition.position === 'after' ? targetIndex + 1 : targetIndex;
-      
-      const newSiblings = [...siblings];
-      newSiblings.splice(insertIndex, 0, { ...sourceItem, parentId: targetData.data.parentId });
-      
-      return newSiblings.map(item => 
-        item.parentId === targetData.data.parentId ? itemsWithoutSource.find(s => s.id === item.id) || item : item
+    (
+      sourceItem: TreeItemType,
+      targetData: TreeItemDragData,
+      itemsWithoutSource: TreeItemType[]
+    ) => {
+      const dropPosition = getDropPosition(
+        targetData,
+        extractClosestEdge(targetData)
       );
+      if (dropPosition.type !== "edge") return itemsWithoutSource;
+
+      // Function to update children recursively
+      const updateChildrenInTree = (items: TreeItemType[], parentId: string, newChildren: TreeItemType[]): TreeItemType[] => {
+        return items.map(item => {
+          if (item.id === parentId) {
+            return { ...item, children: newChildren };
+          }
+          if (item.children.length > 0) {
+            return { ...item, children: updateChildrenInTree(item.children, parentId, newChildren) };
+          }
+          return item;
+        });
+      };
+
+      // Find the parent item to get correct siblings
+      const targetParentId = targetData.data.parentId;
+      const parent = findItemInTree(itemsWithoutSource, targetParentId);
+      
+      // Get the correct siblings array
+      let siblings: TreeItemType[];
+      if (targetParentId === targetData.data.containerId) {
+        // Root level items
+        siblings = itemsWithoutSource;
+      } else if (parent) {
+        // Nested items
+        siblings = parent.children;
+      } else {
+        return itemsWithoutSource;
+      }
+
+      // Create new siblings array with inserted item
+      const targetIndex = siblings.findIndex(i => i.id === targetData.data.id);
+      const insertIndex = dropPosition.position === "after" ? targetIndex + 1 : targetIndex;
+      const newSiblings = [...siblings];
+      newSiblings.splice(insertIndex, 0, {
+        ...sourceItem,
+        parentId: targetParentId
+      });
+
+      // If we're at root level, return the new array directly
+      if (targetParentId === targetData.data.containerId) {
+        return newSiblings;
+      }
+
+      // Otherwise, update the parent's children in the tree
+      return updateChildrenInTree(itemsWithoutSource, targetParentId, newSiblings);
     },
     []
   );
 
   const handleSameContainerMoves = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      if (targetData.id === containerId) {
-        updateContainer(containerId, (items) => {
-          const sourceItem = findItemInTree(items, sourceData.id);
-          if (!sourceItem) return items;
-          
-          const itemsWithoutSource = removeItemFromTree(items, sourceData.id);
-          const edge = extractClosestEdge(targetData);
-          const position = edge === 'top' ? 'start' : 'end';
-          
-          return position === 'start' 
-            ? [{ ...sourceItem, parentId: containerId }, ...itemsWithoutSource]
-            : [...itemsWithoutSource, { ...sourceItem, parentId: containerId }];
-        });
-        return;
-      }
-
-      if (sourceData.data.parentId === targetData.data.parentId) {
-        if (sourceData.data.parentId === containerId) {
-          handleMovesUnderTheContainer(sourceData, targetData);
-        } else {
-          handleMovesUnderTheSameParent(sourceData, targetData);
-        }
-        return;
-      }
-
       // This algorithm handles moving items within the same container but to different parents
-      setItems(prev => {
+      setItems((prev) => {
         // First find the item being dragged by its ID
         const sourceItem = findItemInTree(prev, sourceData.id);
         if (!sourceItem) return prev; // If not found, make no changes
 
         // Remove the dragged item from its current position
         const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
-        
+
         // Try to move the item to the target as a child (into a folder)
-        const withParentMove = handleMoveToParent(sourceItem, targetData, itemsWithoutSource);
+        const withParentMove = handleMoveToParent(
+          sourceItem,
+          targetData,
+          itemsWithoutSource
+        );
         // If the parent move was successful (arrays are different), return the new tree
-        if (!areArraysEqual(withParentMove, itemsWithoutSource, areTreeItemsEqual)) return withParentMove;
+        if (
+          !areArraysEqual(withParentMove, itemsWithoutSource, areTreeItemsEqual)
+        ) {
+          return withParentMove;
+        }
 
         // If parent move wasn't applicable, try moving as a sibling instead
         // This handles moving items before/after other items at the same level
-        return handleMoveToSibling(sourceItem, targetData, itemsWithoutSource, prev);
+        return handleMoveToSibling(
+          sourceItem,
+          targetData,
+          itemsWithoutSource
+        );
       });
     },
-    [containerId, handleMoveToParent, handleMoveToSibling, handleMovesUnderTheContainer, handleMovesUnderTheSameParent, updateContainer]
+    [handleMoveToParent, handleMoveToSibling]
   );
 
   const handleCrossContainerMoves = useCallback(
     (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      updateContainer(containerId, items => 
+      updateContainer(containerId, (items) =>
         removeItemFromTree(items, sourceData.id)
       );
 
@@ -257,11 +289,11 @@ export function TreeView({
         id: crypto.randomUUID(),
         parentId: targetData.data.containerId,
         containerId: targetData.data.containerId,
-        containerType: sourceItem.containerType
+        containerType: sourceItem.containerType,
       };
 
       const edge = extractClosestEdge(targetData);
-      const position = edge === 'top' ? 'before' : 'after';
+      const position = edge === "top" ? "before" : "after";
       targetCallbacks.addItem(newItem, targetData.id, position);
     },
     [containerId, items, callbacks, updateContainer]
@@ -269,7 +301,9 @@ export function TreeView({
 
   const handleToggle = useCallback(
     (id: string) => {
-      const updateItem = (currentItems: typeof initialItems): typeof initialItems => {
+      const updateItem = (
+        currentItems: typeof initialItems
+      ): typeof initialItems => {
         return currentItems.map((item) => {
           if (item.id === id) {
             return { ...item, isExpanded: !item.isExpanded };
@@ -315,8 +349,8 @@ export function TreeView({
   const filteredItems = filterItems(items, searchQuery);
 
   const notifyTreeItemDragState = useCallback((isOver: boolean) => {
-    setDragState(current => 
-      current.type === "dragging-over" 
+    setDragState((current) =>
+      current.type === "dragging-over"
         ? { ...current, isOverTreeItem: isOver }
         : current
     );
@@ -331,33 +365,35 @@ export function TreeView({
         getIsSticky: () => true,
         canDrop({ source }) {
           const sourceData = source.data as TreeItemDragData;
-          return sourceData.type === "tree-item" && 
-                 sourceData.data.containerType === type;
+          return (
+            sourceData.type === "tree-item" &&
+            sourceData.data.containerType === type
+          );
         },
         getData({ input }) {
           if (!containerRef.current) throw new Error("Element not found");
           const data = {
             id: containerId,
             type: "tree-item",
-            data: { 
+            data: {
               id: containerId,
-              containerId, 
+              containerId,
               containerType: type,
-              parentId: containerId
+              parentId: containerId,
             },
           };
           return attachClosestEdge(data, {
             element: containerRef.current,
             input,
-            allowedEdges: ["top", "bottom"]
+            allowedEdges: ["top", "bottom"],
           });
         },
         onDragEnter({ self }) {
           const edge = extractClosestEdge(self.data);
-          setDragState({ 
-            type: "dragging-over", 
-            edge: edge ?? 'bottom',
-            isOverTreeItem: false 
+          setDragState({
+            type: "dragging-over",
+            edge: edge ?? "bottom",
+            isOverTreeItem: false,
           });
         },
         onDragLeave() {
@@ -370,23 +406,27 @@ export function TreeView({
       monitorForElements({
         canMonitor({ source }) {
           const sourceData = source.data as TreeItemDragData;
-          return sourceData.type === "tree-item" && 
-                 sourceData.data.containerType === type;
+          return (
+            sourceData.type === "tree-item" &&
+            sourceData.data.containerType === type
+          );
         },
         onDrop: ({ location, source }) => {
           // Get the most recent drop target data
           const dropTargets = location.current.dropTargets;
-          const target = dropTargets[dropTargets.length - 1];  // Get the last (most specific) target
+          const target = dropTargets[dropTargets.length - 1]; // Get the last (most specific) target
           if (!target) return;
 
           // Try to find a target with edge information
-          const targetWithEdge = dropTargets.find(t => {
+          const targetWithEdge = dropTargets.find((t) => {
             const data = t.data as TreeItemDragData;
             return data.edge !== undefined;
           });
 
           const sourceData = source.data as TreeItemDragData;
-          const targetData = targetWithEdge ? targetWithEdge.data as TreeItemDragData : target.data as TreeItemDragData;
+          const targetData = targetWithEdge
+            ? (targetWithEdge.data as TreeItemDragData)
+            : (target.data as TreeItemDragData);
 
           if (
             sourceData.id === targetData.id ||
@@ -407,7 +447,15 @@ export function TreeView({
     );
 
     return cleanup;
-  }, [items, containerId, handleSameContainerMoves, handleCrossContainerMoves, onItemsChange, type, setItems]);
+  }, [
+    items,
+    containerId,
+    handleSameContainerMoves,
+    handleCrossContainerMoves,
+    onItemsChange,
+    type,
+    setItems,
+  ]);
 
   return (
     <Card className={cn("p-4 w-full max-w-md h-[30vh]", className)}>
@@ -427,7 +475,9 @@ export function TreeView({
       <div
         className={cn(
           "space-y-1 overflow-y-auto h-[calc(30vh-5rem)] relative p-1",
-          dragState.type === "dragging-over" && !dragState.isOverTreeItem && "bg-orange-600/20 rounded-md"
+          dragState.type === "dragging-over" &&
+            !dragState.isOverTreeItem &&
+            "bg-orange-600/20 rounded-md"
         )}
       >
         {filteredItems.map((item) => (

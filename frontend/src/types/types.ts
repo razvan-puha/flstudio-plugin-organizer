@@ -5,7 +5,7 @@ export interface TreeItem {
   label: string;
   parentId: string;
   containerId: string;
-  children?: TreeItem[];
+  children: TreeItem[];
   isExpanded?: boolean;
   containerType: ContainerType;
   fileType: FileType;

@@ -120,5 +120,6 @@ export function areTreeItemsEqual(a: TreeItem, b: TreeItem): boolean {
          a.containerId === b.containerId &&
          a.containerType === b.containerType &&
          a.fileType === b.fileType &&
-         a.label === b.label;
+         a.label === b.label &&
+         areArraysEqual(a.children || [], b.children || [], areTreeItemsEqual);
 }
