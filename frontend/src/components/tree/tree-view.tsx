@@ -13,7 +13,7 @@ import {
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Input } from "@/components/ui/input";
-import { Search, Download, Upload, FolderPlus } from "lucide-react";
+import { Search, Download, Upload, FolderPlus, RotateCcw } from "lucide-react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   Edge,
@@ -566,6 +566,11 @@ export function TreeView({
     handleStartRename(newFolderId, "New Folder");
   }, [containerId, type, handleStartRename]);
 
+  const handleReset = useCallback(() => {
+    setItems(initialItems);
+    setSearchQuery("");
+  }, [initialItems]);
+
   return (
     <Card
       className={cn(
@@ -581,6 +586,14 @@ export function TreeView({
 
           {showViewOperations && (
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleReset}
+                title="Reset structure to initial state"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
