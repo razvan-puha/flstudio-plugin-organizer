@@ -47,6 +47,13 @@ export function TreeView({
     | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
   >({ type: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [renameState, setRenameState] = useState<{
+    itemId: string | null;
+    value: string;
+  }>({
+    itemId: null,
+    value: "",
+  });
 
   const {
     registerContainer,
@@ -522,9 +529,30 @@ export function TreeView({
     }
   };
 
-  const handleAddFolder = () => {
+  const handleStartRename = useCallback((itemId: string, initialValue: string) => {
+    setRenameState({
+      itemId,
+      value: initialValue,
+    });
+  }, []);
+
+  const handleFinishRename = useCallback((newName: string) => {
+    if (!renameState.itemId) return;
+    
+    setItems(prev => prev.map(item => {
+      if (item.id === renameState.itemId) {
+        return { ...item, label: newName };
+      }
+      return item;
+    }));
+    
+    setRenameState({ itemId: null, value: "" });
+  }, [renameState.itemId]);
+
+  const handleAddFolder = useCallback(() => {
+    const newFolderId = crypto.randomUUID();
     const newFolder: TreeItemType = {
-      id: crypto.randomUUID(),
+      id: newFolderId,
       label: "New Folder",
       parentId: containerId,
       containerId: containerId,
@@ -533,8 +561,10 @@ export function TreeView({
       children: [],
       isExpanded: false,
     };
-    setItems((prev) => [...prev, newFolder]);
-  };
+    
+    setItems(prev => [...prev, newFolder]);
+    handleStartRename(newFolderId, "New Folder");
+  }, [containerId, type, handleStartRename]);
 
   return (
     <Card
@@ -619,6 +649,10 @@ export function TreeView({
               onToggle={handleToggle}
               fileType={item.fileType}
               onDragStateChange={notifyTreeItemDragState}
+              isRenaming={item.id === renameState.itemId}
+              onRename={handleFinishRename}
+              initialRenameValue={renameState.value}
+              onStartRename={handleStartRename}
             />
           ))}
           {filteredItems.length === 0 && (

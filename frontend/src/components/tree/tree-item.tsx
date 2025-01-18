@@ -22,6 +22,7 @@ import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/el
 import { useRef, useEffect, useState, useCallback } from "react";
 import { DropIndicator } from "../ui/drop-indicator";
 import { createPortal } from "react-dom";
+import { Input } from "../ui/input";
 
 interface TreeItemProps {
   item: TreeItemType;
@@ -29,6 +30,10 @@ interface TreeItemProps {
   fileType: FileType;
   onToggle: (id: string) => void;
   onDragStateChange?: (isOver: boolean) => void;
+  isRenaming?: boolean;
+  onRename?: (newName: string) => void;
+  initialRenameValue?: string;
+  onStartRename?: (itemId: string, initialValue: string) => void;
 }
 
 const EDGE_THRESHOLD = 8; // pixels from the edge
@@ -53,6 +58,10 @@ export function TreeItem({
   fileType,
   onToggle,
   onDragStateChange,
+  isRenaming,
+  onRename,
+  initialRenameValue,
+  onStartRename,
 }: Readonly<TreeItemProps>) {
   const [innerItem, setInnerItem] = useState<TreeItemType>(item);
   const [state, setState] = useState<TreeItemState>({ type: "idle" });
@@ -225,6 +234,20 @@ export function TreeItem({
     }
   };
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isRenaming]);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onStartRename?.(item.id, item.label);
+  };
+
   return (
     <div className="group relative">
       {/* Edge drop zone at the top */}
@@ -278,6 +301,7 @@ export function TreeItem({
                 onToggle(innerItem.id);
               }
             }}
+            onDoubleClick={handleDoubleClick}
           >
             {fileType === "folder" && (
               <ChevronRight
@@ -288,7 +312,25 @@ export function TreeItem({
               />
             )}
             <Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">{innerItem.label}</span>
+            {isRenaming ? (
+              <Input
+                ref={inputRef}
+                className="h-6 py-0 w-full"
+                defaultValue={initialRenameValue}
+                onBlur={(e) => onRename?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onRename?.(e.currentTarget.value);
+                  }
+                  if (e.key === 'Escape') {
+                    onRename?.(initialRenameValue ?? item.label); 
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="text-sm">{innerItem.label}</span>
+            )}
           </div>
         </div>
 

@@ -6,9 +6,6 @@ import com.imageline.flstudio_plugin_organizer.dto.PluginMetadata;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.Resource;
-
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
