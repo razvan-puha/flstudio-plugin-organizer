@@ -7,7 +7,7 @@ import {
   TreeViewProps,
   TreeItem as TreeItemType,
 } from "@/types/types";
-import { useCallback, useState, useRef, useEffect, useMemo } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import {
   monitorForElements,
   dropTargetForElements,
@@ -20,26 +20,26 @@ import {
   attachClosestEdge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import {
-  cn,
-  findItemInTree,
-  removeItemFromTree,
-  areArraysEqual,
-  areTreeItemsEqual,
-} from "@/lib/utils";
-import { useTreeViewContext } from "@/contexts/tree-view-context";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useStore } from "@/data/store";
 
 export function TreeView({
-  items: initialItems,
-  onItemsChange,
   className,
   containerId,
   type,
   title,
   showViewOperations,
 }: Readonly<TreeViewProps>) {
-  const [items, setItems] = useState(initialItems);
+  const {
+    addPluginTree,
+    getPluginTree,
+    addItemToPluginTree,
+    renameItemInPluginTree,
+    moveItemBetweenTrees,
+  } = useStore();
+
+  const [items, setItems] = useState(getPluginTree(containerId));
   const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<
@@ -55,292 +55,9 @@ export function TreeView({
     value: "",
   });
 
-  const {
-    registerContainer,
-    unregisterContainer,
-    updateContainer,
-    notifyItemRemoved,
-    callbacks,
-  } = useTreeViewContext();
-
-  const addItem = useCallback(
-    (item: TreeItemType, targetId?: string, position?: "before" | "after") => {
-      setItems((prev) => {
-        if (!targetId) {
-          return [
-            ...prev,
-            { ...item, parentId: containerId, containerType: type },
-          ];
-        }
-
-        const targetIndex = prev.findIndex((i) => i.id === targetId);
-        if (targetIndex === -1) {
-          return [
-            ...prev,
-            { ...item, parentId: containerId, containerType: type },
-          ];
-        }
-
-        const newItems = [...prev];
-        const insertIndex =
-          position === "before" ? targetIndex : targetIndex + 1;
-        newItems.splice(insertIndex, 0, {
-          ...item,
-          parentId: containerId,
-          containerType: type,
-        });
-        return newItems;
-      });
-    },
-    [containerId, type]
-  );
-
-  const removeItem = useCallback(
-    (itemId: string) => {
-      const item = findItemInTree(items, itemId);
-      if (!item) return;
-
-      setItems((prev) => removeItemFromTree(prev, itemId));
-      notifyItemRemoved(containerId, item);
-    },
-    [items, containerId, notifyItemRemoved]
-  );
-
-  const containerCallbacks = useMemo(
-    () => ({
-      addItem,
-      removeItem,
-    }),
-    [addItem, removeItem]
-  );
-
-  useEffect(() => {
-    registerContainer(containerId, containerCallbacks, items);
-    return () => unregisterContainer(containerId);
-  }, [
-    containerId,
-    containerCallbacks,
-    items,
-    registerContainer,
-    unregisterContainer,
-  ]);
-
-  useEffect(() => {
-    setItems(initialItems);
-  }, [initialItems]);
-
-  useEffect(() => {
-    updateContainer(containerId, () => items);
-    onItemsChange?.(items);
-  }, [items, containerId, updateContainer, onItemsChange]);
-
-  const getDropPosition = (targetData: TreeItemDragData, edge: Edge | null) => {
-    if (!edge && targetData.data.fileType === "folder") {
-      return { type: "inside" as const };
-    }
-    return {
-      type: "edge" as const,
-      position: edge === "bottom" ? ("after" as const) : ("before" as const),
-    };
-  };
-
-  const handleMoveToParent = useCallback(
-    (
-      sourceItem: TreeItemType,
-      targetData: TreeItemDragData,
-      itemsWithoutSource: TreeItemType[]
-    ) => {
-      const dropPosition = getDropPosition(
-        targetData,
-        extractClosestEdge(targetData)
-      );
-
-      if (dropPosition.type === "inside") {
-        // Function to update children recursively
-        const updateChildrenInTree = (
-          items: TreeItemType[],
-          targetId: string
-        ): TreeItemType[] => {
-          return items.map((item) => {
-            if (item.id === targetId && item.fileType === "folder") {
-              // Add the source item as a child of the target folder
-              const newChildren = [
-                ...item.children,
-                {
-                  ...sourceItem,
-                  parentId: item.id,
-                  containerId: item.containerId,
-                },
-              ];
-
-              return {
-                ...item,
-                children: newChildren,
-                isExpanded: false,
-              };
-            }
-            if (item.children.length > 0) {
-              return {
-                ...item,
-                children: updateChildrenInTree(item.children, targetId),
-              };
-            }
-            return item;
-          });
-        };
-
-        // Update the tree recursively
-        return updateChildrenInTree(itemsWithoutSource, targetData.data.id);
-      }
-
-      return itemsWithoutSource;
-    },
-    []
-  );
-
-  const handleMoveToSibling = useCallback(
-    (
-      sourceItem: TreeItemType,
-      targetData: TreeItemDragData,
-      itemsWithoutSource: TreeItemType[]
-    ) => {
-      const dropPosition = getDropPosition(
-        targetData,
-        extractClosestEdge(targetData)
-      );
-      if (dropPosition.type !== "edge") return itemsWithoutSource;
-
-      // Function to update children recursively
-      const updateChildrenInTree = (
-        items: TreeItemType[],
-        parentId: string,
-        newChildren: TreeItemType[]
-      ): TreeItemType[] => {
-        return items.map((item) => {
-          if (item.id === parentId) {
-            return { ...item, children: newChildren };
-          }
-          if (item.children.length > 0) {
-            return {
-              ...item,
-              children: updateChildrenInTree(
-                item.children,
-                parentId,
-                newChildren
-              ),
-            };
-          }
-          return item;
-        });
-      };
-
-      // Find the parent item to get correct siblings
-      const targetParentId = targetData.data.parentId;
-      const parent = findItemInTree(itemsWithoutSource, targetParentId);
-
-      // Get the correct siblings array
-      let siblings: TreeItemType[];
-      if (targetParentId === targetData.data.containerId) {
-        // Root level items
-        siblings = itemsWithoutSource;
-      } else if (parent) {
-        // Nested items
-        siblings = parent.children;
-      } else {
-        return itemsWithoutSource;
-      }
-
-      // Create new siblings array with inserted item
-      const targetIndex = siblings.findIndex(
-        (i) => i.id === targetData.data.id
-      );
-      const insertIndex =
-        dropPosition.position === "after" ? targetIndex + 1 : targetIndex;
-      const newSiblings = [...siblings];
-      newSiblings.splice(insertIndex, 0, {
-        ...sourceItem,
-        parentId: targetParentId,
-      });
-
-      // If we're at root level, return the new array directly
-      if (targetParentId === targetData.data.containerId) {
-        return newSiblings;
-      }
-
-      // Otherwise, update the parent's children in the tree
-      return updateChildrenInTree(
-        itemsWithoutSource,
-        targetParentId,
-        newSiblings
-      );
-    },
-    []
-  );
-
-  const handleSameContainerMoves = useCallback(
-    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      // This algorithm handles moving items within the same container but to different parents
-      setItems((prev) => {
-        // First find the item being dragged by its ID
-        const sourceItem = findItemInTree(prev, sourceData.id);
-        if (!sourceItem) return prev; // If not found, make no changes
-
-        // Remove the dragged item from its current position
-        const itemsWithoutSource = removeItemFromTree(prev, sourceData.id);
-
-        // Try to move the item to the target as a child (into a folder)
-        const withParentMove = handleMoveToParent(
-          sourceItem,
-          targetData,
-          itemsWithoutSource
-        );
-        // If the parent move was successful (arrays are different), return the new tree
-        if (
-          !areArraysEqual(withParentMove, itemsWithoutSource, areTreeItemsEqual)
-        ) {
-          return withParentMove;
-        }
-
-        // If parent move wasn't applicable, try moving as a sibling instead
-        // This handles moving items before/after other items at the same level
-        return handleMoveToSibling(sourceItem, targetData, itemsWithoutSource);
-      });
-    },
-    [handleMoveToParent, handleMoveToSibling]
-  );
-
-  const handleCrossContainerMoves = useCallback(
-    (sourceData: TreeItemDragData, targetData: TreeItemDragData) => {
-      updateContainer(containerId, (items) =>
-        removeItemFromTree(items, sourceData.id)
-      );
-
-      const targetCallbacks = callbacks[targetData.data.containerId];
-      if (!targetCallbacks) return;
-
-      const sourceItem = findItemInTree(items, sourceData.id);
-      if (!sourceItem) return;
-
-      const newItem = {
-        ...sourceItem,
-        id: crypto.randomUUID(),
-        parentId: targetData.data.containerId,
-        containerId: targetData.data.containerId,
-        containerType: sourceItem.containerType,
-      };
-
-      const edge = extractClosestEdge(targetData);
-      const position = edge === "top" ? "before" : "after";
-      targetCallbacks.addItem(newItem, targetData.id, position);
-    },
-    [containerId, items, callbacks, updateContainer]
-  );
-
   const handleToggle = useCallback(
     (id: string) => {
-      const updateItem = (
-        currentItems: typeof initialItems
-      ): typeof initialItems => {
+      const updateItem = (currentItems: TreeItemType[]): TreeItemType[] => {
         return currentItems.map((item) => {
           if (item.id === id) {
             return { ...item, isExpanded: !item.isExpanded };
@@ -352,16 +69,17 @@ export function TreeView({
         });
       };
 
-      setItems(updateItem(items));
+      const newItems = updateItem(items);
+      addPluginTree(containerId, newItems);
+      setItems(newItems);
     },
-    [items, setItems]
+    [items, addPluginTree, containerId]
   );
 
   const filterItems = useCallback(
-    (items: typeof initialItems, query: string): typeof items => {
+    (items: TreeItemType[], query: string): TreeItemType[] => {
       if (!query) return items;
-
-      return items.reduce<typeof items>((acc, item) => {
+      return items.reduce<TreeItemType[]>((acc, item) => {
         const matchesQuery = item.label
           .toLowerCase()
           .includes(query.toLowerCase());
@@ -449,12 +167,10 @@ export function TreeView({
           );
         },
         onDrop: ({ location, source }) => {
-          // Get the most recent drop target data
           const dropTargets = location.current.dropTargets;
-          const target = dropTargets[dropTargets.length - 1]; // Get the last (most specific) target
+          const target = dropTargets[dropTargets.length - 1];
           if (!target) return;
 
-          // Try to find a target with edge information
           const targetWithEdge = dropTargets.find((t) => {
             const data = t.data as TreeItemDragData;
             return data.edge !== undefined;
@@ -474,11 +190,18 @@ export function TreeView({
             return;
           }
 
-          if (sourceData.data.containerId === targetData.data.containerId) {
-            handleSameContainerMoves(sourceData, targetData);
-          } else {
-            handleCrossContainerMoves(sourceData, targetData);
-          }
+          const edge = extractClosestEdge(targetData);
+          const position = edge === "top" ? "before" : "after";
+
+          moveItemBetweenTrees(
+            sourceData.data.containerId,
+            targetData.data.containerId,
+            sourceData.data,
+            targetData.id,
+            position
+          );
+
+          setItems(getPluginTree(containerId));
         },
       })
     );
@@ -487,9 +210,8 @@ export function TreeView({
   }, [
     items,
     containerId,
-    handleSameContainerMoves,
-    handleCrossContainerMoves,
-    onItemsChange,
+    moveItemBetweenTrees,
+    getPluginTree,
     type,
     setItems,
   ]);
@@ -529,25 +251,26 @@ export function TreeView({
     }
   };
 
-  const handleStartRename = useCallback((itemId: string, initialValue: string) => {
-    setRenameState({
-      itemId,
-      value: initialValue,
-    });
-  }, []);
+  const handleStartRename = useCallback(
+    (itemId: string, initialValue: string) => {
+      setRenameState({
+        itemId,
+        value: initialValue,
+      });
+    },
+    []
+  );
 
-  const handleFinishRename = useCallback((newName: string) => {
-    if (!renameState.itemId) return;
-    
-    setItems(prev => prev.map(item => {
-      if (item.id === renameState.itemId) {
-        return { ...item, label: newName };
-      }
-      return item;
-    }));
-    
-    setRenameState({ itemId: null, value: "" });
-  }, [renameState.itemId]);
+  const handleFinishRename = useCallback(
+    (newName: string) => {
+      if (!renameState.itemId) return;
+
+      renameItemInPluginTree(containerId, renameState.itemId, newName);
+
+      setRenameState({ itemId: null, value: "" });
+    },
+    [containerId, renameItemInPluginTree, renameState.itemId]
+  );
 
   const handleAddFolder = useCallback(() => {
     const newFolderId = crypto.randomUUID();
@@ -561,15 +284,15 @@ export function TreeView({
       children: [],
       isExpanded: false,
     };
-    
-    setItems(prev => [...prev, newFolder]);
+
+    addItemToPluginTree(containerId, type, newFolder);
     handleStartRename(newFolderId, "New Folder");
-  }, [containerId, type, handleStartRename]);
+  }, [containerId, type, addItemToPluginTree, handleStartRename]);
 
   const handleReset = useCallback(() => {
-    setItems(initialItems);
+    setItems(getPluginTree(containerId));
     setSearchQuery("");
-  }, [initialItems]);
+  }, [containerId, getPluginTree]);
 
   return (
     <Card

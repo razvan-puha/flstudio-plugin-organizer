@@ -18,7 +18,6 @@ import { createRequestBody } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import {
   PluginList,
-  PluginTreeList,
   VendorPlugins,
   TreeItem,
   ContainerType,
@@ -31,6 +30,7 @@ import {
   ORGANIZED_GENERATORS_CONTAINER_ID,
 } from "@/data/constants";
 import { TreeViewProvider } from '@/contexts/tree-view-context';
+import { useStore } from "@/data/store";
 
 const formSchema = z.object({
   zipFile: z.any(),
@@ -41,8 +41,9 @@ export default function Home() {
   const [hideProgress, setHideProgress] = useState(true);
   const [downloadUrl, setDownloadUrl] = useState("");
   const [labelText, setLabelText] = useState("");
-  const [pluginList, setPluginList] = useState<PluginTreeList | null>(null);
   const [showTree, setShowTree] = useState(false);
+
+  const { addPluginTree, resetStore } = useStore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -85,6 +86,9 @@ export default function Home() {
   };
 
   const loadZipFile = () => {
+    resetStore();
+    setShowTree(false);
+
     fetch(process.env.NEXT_PUBLIC_API_URL + "/api/load", {
       method: "POST",
       body: createRequestBody(form.getValues().zipFile),
@@ -98,18 +102,21 @@ export default function Home() {
       })
       .then((data) => {
         if (data != null) {
-          setPluginList({
-            effects: createTreeItems(
-              data.effects,
-              DEFAULT_EFFECTS_CONTAINER_ID,
-              "effects"
-            ),
-            generators: createTreeItems(
-              data.generators,
-              DEFAULT_GENERATORS_CONTAINER_ID,
-              "generators"
-            ),
-          });
+          const defaultEffects = createTreeItems(
+            data.effects,
+            DEFAULT_EFFECTS_CONTAINER_ID,
+            "effects"
+          );
+          const defaultGenerators = createTreeItems(
+            data.generators,
+            DEFAULT_GENERATORS_CONTAINER_ID,
+            "generators"
+          );
+
+          addPluginTree(DEFAULT_EFFECTS_CONTAINER_ID, defaultEffects);
+          addPluginTree(DEFAULT_GENERATORS_CONTAINER_ID, defaultGenerators);
+          addPluginTree(ORGANIZED_EFFECTS_CONTAINER_ID, []);
+          addPluginTree(ORGANIZED_GENERATORS_CONTAINER_ID, []);
           setShowTree(true);
         }
       })
@@ -245,14 +252,12 @@ export default function Home() {
               <>
                 <div className="w-full flex flex-row items-start">
                   <TreeView
-                    items={pluginList?.effects ?? []}
                     containerId={DEFAULT_EFFECTS_CONTAINER_ID}
                     type="effects"
                     title="Effects default structure"
                     showViewOperations={false}
                   />
                   <TreeView
-                    items={[]}
                     className="ml-4"
                     containerId={ORGANIZED_EFFECTS_CONTAINER_ID}
                     type="effects"
@@ -262,14 +267,12 @@ export default function Home() {
                 </div>
                 <div className="w-full flex flex-row items-start mt-10">
                   <TreeView
-                    items={pluginList?.generators ?? []}
                     containerId={DEFAULT_GENERATORS_CONTAINER_ID}
                     type="generators"
                     title="Generators default structure"
                     showViewOperations={false}
                   />
                   <TreeView
-                    items={[]}
                     className="ml-4"
                     containerId={ORGANIZED_GENERATORS_CONTAINER_ID}
                     type="generators"

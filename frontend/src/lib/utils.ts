@@ -27,21 +27,6 @@ export function getEdgeColorByLevel(level: number): string {
       return "rgb(34, 197, 94)"; // green-500
   }
 }
-
-export function findItemInTree(
-  items: TreeItem[],
-  itemId: string
-): TreeItem | null {
-  for (const item of items) {
-    if (item.id === itemId) return item;
-    if (item.children) {
-      const found = findItemInTree(item.children, itemId);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 export function removeItemFromTree(
   items: TreeItem[],
   itemId: string

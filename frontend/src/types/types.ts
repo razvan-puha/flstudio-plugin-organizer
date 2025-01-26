@@ -29,7 +29,6 @@ export type ContainerType = "effects" | "generators";
 export type FileType = "folder" | "file";
 
 export interface TreeViewProps {
-  items: TreeItem[];
   onItemsChange?: (items: TreeItem[]) => void;
   className?: string;
   containerId: string;
