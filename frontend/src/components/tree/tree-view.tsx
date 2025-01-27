@@ -22,6 +22,7 @@ import {
 import { areArraysEqual, areTreeItemsEqual, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/data/store";
+import { useTreeViewContext } from "@/contexts/tree-view-context";
 
 export function TreeView({
   className,
@@ -39,6 +40,8 @@ export function TreeView({
     reorderItemInPluginTree,
     deletePluginTree,
   } = useStore();
+
+  const { refreshTrigger } = useTreeViewContext();
 
   const [items, setItems] = useState(getPluginTree(containerId));
   const [searchQuery, setSearchQuery] = useState("");
@@ -229,6 +232,13 @@ export function TreeView({
     setItems,
     reorderItemInPluginTree,
   ]);
+
+  useEffect(() => {
+    // Refresh logic here if needed
+    if (refreshTrigger[containerId] > 0) {
+      setItems(getPluginTree(containerId));
+    }
+  }, [containerId, getPluginTree, refreshTrigger]);
 
   const handleDownload = () => {
     const dataStr = JSON.stringify(items, null, 2);

@@ -58,6 +58,8 @@ export interface TreeViewContextType {
   notifyItemRemoved: (containerId: string, item: TreeItem) => void;
   getItems: (containerId: string) => TreeItem[];
   callbacks: Record<string, TreeViewCallbacks>;
+  refreshContainer: (containerId: string) => void;
+  refreshTrigger: Record<string, number>;
 }
 
 export interface TreeViewCallbacks {

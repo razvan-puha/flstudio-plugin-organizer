@@ -1,4 +1,6 @@
-import { createContext, useContext, useCallback, useReducer, useMemo } from 'react';
+"use client";
+
+import { createContext, useContext, useCallback, useReducer, useMemo, useState } from 'react';
 import { TreeViewContextType, TreeViewCallbacks, TreeItem } from '@/types/types';
 
 type ContainerState = {
@@ -56,10 +58,11 @@ function containerReducer(state: ContainerState, action: Action): ContainerState
   }
 }
 
-const TreeViewContext = createContext<TreeViewContextType | null>(null);
+const TreeViewContext = createContext<TreeViewContextType | undefined>(undefined);
 
 export function TreeViewProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, dispatch] = useReducer(containerReducer, { callbacks: {}, items: {} });
+  const [refreshTrigger, setRefreshTrigger] = useState<Record<string, number>>({});
 
   const registerContainer = useCallback((id: string, callbacks: TreeViewCallbacks, items: TreeItem[]) => {
     dispatch({ type: 'REGISTER_CONTAINER', id, callbacks, items });
@@ -81,14 +84,23 @@ export function TreeViewProvider({ children }: Readonly<{ children: React.ReactN
     });
   }, [state.items]);
 
+  const refreshContainer = useCallback((containerId: string) => {
+    setRefreshTrigger(prev => ({
+      ...prev,
+      [containerId]: (prev[containerId] || 0) + 1
+    }));
+  }, []);
+
   const value = useMemo(() => ({
     registerContainer,
     unregisterContainer,
     updateContainer,
     notifyItemRemoved,
     getItems: (containerId: string) => state.items[containerId] || [],
-    callbacks: state.callbacks
-  }), [registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, state.items, state.callbacks]);
+    callbacks: state.callbacks,
+    refreshContainer,
+    refreshTrigger
+  }), [registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, state.items, state.callbacks, refreshContainer, refreshTrigger]);
 
   return (
     <TreeViewContext.Provider value={value}>
