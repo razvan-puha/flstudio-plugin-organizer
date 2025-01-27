@@ -36,7 +36,8 @@ export function TreeView({
     addItemToPluginTree,
     renameItemInPluginTree,
     moveItemBetweenTrees,
-    reorderItemInPluginTree
+    reorderItemInPluginTree,
+    deletePluginTree,
   } = useStore();
 
   const [items, setItems] = useState(getPluginTree(containerId));
@@ -180,7 +181,7 @@ export function TreeView({
               sourceData.data.containerId,
               sourceData.data
             );
-            
+
             setItems(getPluginTree(containerId));
             setDragState({ type: "idle" });
             return;
@@ -207,19 +208,27 @@ export function TreeView({
         },
         onDrop({ source }) {
           const sourceData = source.data as TreeItemDragData;
-          
+
           if (sourceData.data.containerId === containerId) {
             const tree = getPluginTree(containerId);
             if (!areArraysEqual(items, tree, areTreeItemsEqual)) {
               setItems(tree);
-            } 
+            }
           }
-        }
+        },
       })
     );
 
     return cleanup;
-  }, [items, containerId, moveItemBetweenTrees, getPluginTree, type, setItems, reorderItemInPluginTree]);
+  }, [
+    items,
+    containerId,
+    moveItemBetweenTrees,
+    getPluginTree,
+    type,
+    setItems,
+    reorderItemInPluginTree,
+  ]);
 
   const handleDownload = () => {
     const dataStr = JSON.stringify(items, null, 2);
@@ -271,10 +280,10 @@ export function TreeView({
       if (!renameState.itemId) return;
 
       renameItemInPluginTree(containerId, renameState.itemId, newName);
-
       setRenameState({ itemId: null, value: "" });
+      setItems(getPluginTree(containerId));
     },
-    [containerId, renameItemInPluginTree, renameState.itemId]
+    [containerId, getPluginTree, renameItemInPluginTree, renameState.itemId]
   );
 
   const handleAddFolder = useCallback(() => {
@@ -292,12 +301,20 @@ export function TreeView({
 
     addItemToPluginTree(containerId, type, newFolder);
     handleStartRename(newFolderId, "New Folder");
-  }, [containerId, type, addItemToPluginTree, handleStartRename]);
+    setItems(getPluginTree(containerId));
+  }, [
+    containerId,
+    type,
+    addItemToPluginTree,
+    handleStartRename,
+    getPluginTree,
+  ]);
 
   const handleReset = useCallback(() => {
-    setItems(getPluginTree(containerId));
+    deletePluginTree(containerId);
+    setItems([]);
     setSearchQuery("");
-  }, [containerId, getPluginTree]);
+  }, [containerId, deletePluginTree]);
 
   const handleItemDrop = useCallback(() => {
     setItems(getPluginTree(containerId));

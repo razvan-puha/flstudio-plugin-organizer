@@ -5,6 +5,7 @@ type StoreState = {
   pluginTreeMap: Map<string, TreeItem[]>;
   addPluginTree: (containerId: string, tree: TreeItem[]) => void;
   getPluginTree: (containerId: string) => TreeItem[];
+  deletePluginTree: (containerId: string) => void;
   addItemToPluginTree: (
     containerId: string,
     type: ContainerType,
@@ -70,18 +71,36 @@ export const useStore = create<StoreState>((set, get) => ({
   ) => {
     const pluginTree = get().getPluginTree(containerId);
     if (!targetId) {
-      return [
-        ...pluginTree,
-        { ...item, parentId: containerId, containerType: type },
-      ];
+      set((state) => {
+        const newMap = new Map(state.pluginTreeMap);
+        newMap.set(containerId, [
+          ...pluginTree,
+          {
+            ...item,
+            parentId: containerId,
+            containerType: type,
+            containerId: containerId,
+          },
+        ]);
+        return { pluginTreeMap: newMap };
+      });
     }
 
     const targetIndex = pluginTree.findIndex((i) => i.id === targetId);
     if (targetIndex === -1) {
-      return [
-        ...pluginTree,
-        { ...item, parentId: containerId, containerType: type },
-      ];
+      return set((state) => {
+        const newMap = new Map(state.pluginTreeMap);
+        newMap.set(containerId, [
+          ...pluginTree,
+          {
+            ...item,
+            parentId: containerId,
+            containerType: type,
+            containerId: containerId,
+          },
+        ]);
+        return { pluginTreeMap: newMap };
+      });
     }
 
     const newItems = [...pluginTree];
@@ -91,7 +110,11 @@ export const useStore = create<StoreState>((set, get) => ({
       parentId: containerId,
       containerType: type,
     });
-    return newItems;
+    set((state) => {
+      const newMap = new Map(state.pluginTreeMap);
+      newMap.set(containerId, newItems);
+      return { pluginTreeMap: newMap };
+    });
   },
   removeItemFromPluginTree: (containerId: string, itemId: string) => {
     const pluginTree = get().getPluginTree(containerId);
@@ -270,6 +293,13 @@ export const useStore = create<StoreState>((set, get) => ({
         return { pluginTreeMap: newMap };
       });
     }
+  },
+  deletePluginTree: (containerId: string) => {
+    set((state) => {
+      const newMap = new Map(state.pluginTreeMap);
+      newMap.delete(containerId);
+      return { pluginTreeMap: newMap };
+    });
   },
 }));
 
