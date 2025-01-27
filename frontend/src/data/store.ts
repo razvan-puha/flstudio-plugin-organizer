@@ -5,11 +5,29 @@ type StoreState = {
   pluginTreeMap: Map<string, TreeItem[]>;
   addPluginTree: (containerId: string, tree: TreeItem[]) => void;
   getPluginTree: (containerId: string) => TreeItem[];
-  addItemToPluginTree: (containerId: string, type: ContainerType, item: TreeItem, targetId?: string, position?: "before" | "after") => void;
+  addItemToPluginTree: (
+    containerId: string,
+    type: ContainerType,
+    item: TreeItem,
+    targetId?: string,
+    position?: "before" | "after"
+  ) => void;
   removeItemFromPluginTree: (containerId: string, itemId: string) => TreeItem[];
-  renameItemInPluginTree: (containerId: string, itemId: string, newName: string) => TreeItem[];
-  findItemInPluginTree: (containerId: string, itemId: string) => TreeItem | null;
-  updateItemInPluginTree: (containerId: string, sourceItem: TreeItem, targetId: string, newItem: TreeItem) => TreeItem[];
+  renameItemInPluginTree: (
+    containerId: string,
+    itemId: string,
+    newName: string
+  ) => TreeItem[];
+  findItemInPluginTree: (
+    containerId: string,
+    itemId: string
+  ) => TreeItem | null;
+  updateItemInPluginTree: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetId: string,
+    newItem: TreeItem
+  ) => TreeItem[];
   moveItemBetweenTrees: (
     sourceContainerId: string,
     targetContainerId: string,
@@ -18,19 +36,38 @@ type StoreState = {
     position?: "before" | "after"
   ) => void;
   resetStore: () => void;
-}
+  reorderItemInPluginTree: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetId?: string,
+    position?: "before" | "after"
+  ) => void;
+  addItemToParent: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetContainerId: string,
+    targetId: string
+  ) => void;
+};
 
 export const useStore = create<StoreState>((set, get) => ({
   pluginTreeMap: new Map<string, TreeItem[]>(),
-  addPluginTree: (containerId: string, tree: TreeItem[]) => set((state) => {
-    const newMap = new Map(state.pluginTreeMap);
-    newMap.set(containerId, tree);
-    return { pluginTreeMap: newMap };
-  }),
+  addPluginTree: (containerId: string, tree: TreeItem[]) =>
+    set((state) => {
+      const newMap = new Map(state.pluginTreeMap);
+      newMap.set(containerId, tree);
+      return { pluginTreeMap: newMap };
+    }),
   getPluginTree: (containerId: string): TreeItem[] => {
     return get().pluginTreeMap.get(containerId) ?? [];
   },
-  addItemToPluginTree: (containerId: string, type: ContainerType, item: TreeItem, targetId?: string, position?: "before" | "after") => {
+  addItemToPluginTree: (
+    containerId: string,
+    type: ContainerType,
+    item: TreeItem,
+    targetId?: string,
+    position?: "before" | "after"
+  ) => {
     const pluginTree = get().getPluginTree(containerId);
     if (!targetId) {
       return [
@@ -48,8 +85,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
 
     const newItems = [...pluginTree];
-    const insertIndex =
-      position === "before" ? targetIndex : targetIndex + 1;
+    const insertIndex = position === "before" ? targetIndex : targetIndex + 1;
     newItems.splice(insertIndex, 0, {
       ...item,
       parentId: containerId,
@@ -72,7 +108,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
     return newTree;
   },
-  renameItemInPluginTree: (containerId: string, itemId: string, newName: string) => {
+  renameItemInPluginTree: (
+    containerId: string,
+    itemId: string,
+    newName: string
+  ) => {
     const pluginTree = get().getPluginTree(containerId);
     const newTree = renameItemInTreeRecursive(pluginTree, itemId, newName);
     if (!newTree) {
@@ -91,9 +131,19 @@ export const useStore = create<StoreState>((set, get) => ({
     const pluginTree = get().getPluginTree(containerId);
     return findItemInTreeRecursive(pluginTree, itemId);
   },
-  updateItemInPluginTree: (containerId: string, sourceItem: TreeItem, targetId: string, newItem: TreeItem) => {
+  updateItemInPluginTree: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetId: string,
+    newItem: TreeItem
+  ) => {
     const pluginTree = get().getPluginTree(containerId);
-    const newTree = updateItemInTreeRecursive(pluginTree, sourceItem, targetId, newItem);
+    const newTree = updateItemInTreeRecursive(
+      pluginTree,
+      sourceItem,
+      targetId,
+      newItem
+    );
     if (!newTree) {
       return [];
     }
@@ -106,6 +156,31 @@ export const useStore = create<StoreState>((set, get) => ({
 
     return newTree;
   },
+  resetStore: () => {
+    set(() => ({
+      pluginTreeMap: new Map<string, TreeItem[]>(),
+    }));
+  },
+  reorderItemInPluginTree: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetId?: string,
+    position?: "before" | "after"
+  ) => {
+    const sourceTree = get().getPluginTree(containerId);
+    const reorderedTree = reorderItemInTree(
+      sourceTree,
+      sourceItem,
+      targetId,
+      position
+    );
+
+    set((state) => {
+      const newMap = new Map(state.pluginTreeMap);
+      newMap.set(containerId, reorderedTree);
+      return { pluginTreeMap: newMap };
+    });
+  },
   moveItemBetweenTrees: (
     sourceContainerId: string,
     targetContainerId: string,
@@ -114,25 +189,34 @@ export const useStore = create<StoreState>((set, get) => ({
     position?: "before" | "after"
   ) => {
     if (sourceContainerId === targetContainerId) {
-      const sourceTree = get().getPluginTree(sourceContainerId);
-      const reorderedTree = reorderItemInTree(sourceTree, sourceItem, targetId, position);
-      
-      set((state) => {
-        const newMap = new Map(state.pluginTreeMap);
-        newMap.set(sourceContainerId, reorderedTree);
-        return { pluginTreeMap: newMap };
-      });
+      get().reorderItemInPluginTree(
+        sourceContainerId,
+        sourceItem,
+        targetId,
+        position
+      );
       return;
     }
 
     const sourceTree = get().getPluginTree(sourceContainerId);
     const targetTree = get().getPluginTree(targetContainerId);
 
-    const newSourceTree = removeItemFromTreeRecursive(sourceTree, sourceItem.id);
+    const newSourceTree = removeItemFromTreeRecursive(
+      sourceTree,
+      sourceItem.id
+    );
 
     const newTargetTree = addItemToTree(
       targetTree,
-      { ...sourceItem, containerId: targetContainerId },
+      {
+        ...sourceItem,
+        parentId: targetContainerId,
+        containerId: targetContainerId,
+        children: sourceItem.children.map((child) => ({
+          ...child,
+          containerId: targetContainerId,
+        })),
+      },
       targetId,
       position
     );
@@ -144,33 +228,83 @@ export const useStore = create<StoreState>((set, get) => ({
       return { pluginTreeMap: newMap };
     });
   },
-  resetStore: () => {
-    set(() => ({
-      pluginTreeMap: new Map<string, TreeItem[]>()
-    }));
+  addItemToParent: (
+    containerId: string,
+    sourceItem: TreeItem,
+    targetContainerId: string,
+    targetId: string
+  ) => {
+    const sourceTree = get().getPluginTree(containerId);
+
+    if (targetContainerId === containerId) {
+      // If moving within the same tree
+      const newSourceTree = removeItemFromTreeRecursive(
+        sourceTree,
+        sourceItem.id
+      );
+      if (!newSourceTree) return;
+
+      const newTargetTree = addChildrenToTree(
+        newSourceTree,
+        sourceItem,
+        targetId
+      );
+      set((state) => {
+        const newMap = new Map(state.pluginTreeMap);
+        newMap.set(containerId, newTargetTree);
+        return { pluginTreeMap: newMap };
+      });
+    } else {
+      // If moving between different trees
+      const targetTree = get().getPluginTree(targetContainerId);
+      const newSourceTree = removeItemFromTreeRecursive(
+        sourceTree,
+        sourceItem.id
+      );
+      const newTargetTree = addChildrenToTree(targetTree, sourceItem, targetId);
+
+      set((state) => {
+        const newMap = new Map(state.pluginTreeMap);
+        if (newSourceTree) newMap.set(containerId, newSourceTree);
+        if (newTargetTree) newMap.set(targetContainerId, newTargetTree);
+        return { pluginTreeMap: newMap };
+      });
+    }
   },
 }));
 
-function removeItemFromTreeRecursive(tree: TreeItem[], itemId: string): TreeItem[] | undefined {
+function removeItemFromTreeRecursive(
+  tree: TreeItem[],
+  itemId: string
+): TreeItem[] | undefined {
   return tree
     .filter((item) => item.id !== itemId)
     .map((item) => ({
       ...item,
-      children: item.children 
+      children: item.children
         ? removeItemFromTreeRecursive(item.children, itemId) ?? []
-        : []
+        : [],
     }));
 }
 
-function renameItemInTreeRecursive(tree: TreeItem[], itemId: string, newName: string): TreeItem[] | undefined {
+function renameItemInTreeRecursive(
+  tree: TreeItem[],
+  itemId: string,
+  newName: string
+): TreeItem[] | undefined {
   return tree.map((item) => ({
     ...item,
     label: item.id === itemId ? newName : item.label,
-    children: item.children ? renameItemInTreeRecursive(item.children, itemId, newName) ?? [] : [],
+    children: item.children
+      ? renameItemInTreeRecursive(item.children, itemId, newName) ?? []
+      : [],
   }));
 }
 
-function findItemInTreeRecursive(tree: TreeItem[], itemId: string): TreeItem | null {
+function findItemInTreeRecursive(
+  tree: TreeItem[],
+  itemId: string
+): TreeItem | null {
   for (const item of tree) {
     if (item.id === itemId) return item;
     if (item.children) {
@@ -189,7 +323,7 @@ function updateItemInTreeRecursive(
   position?: "before" | "after"
 ): TreeItem[] {
   // Handle root level items
-  const targetIndex = tree.findIndex(item => item.id === targetId);
+  const targetIndex = tree.findIndex((item) => item.id === targetId);
   if (targetIndex !== -1) {
     const result = [...tree];
     if (newItem) {
@@ -212,18 +346,25 @@ function updateItemInTreeRecursive(
       const insertIndex = position === "before" ? targetIndex : targetIndex + 1;
       result.splice(insertIndex, 0, {
         ...sourceItem,
-        parentId: tree[0]?.parentId
+        parentId: tree[0]?.parentId,
       });
     }
     return result;
   }
 
   // Recursively process children
-  return tree.map(item => ({
+  return tree.map((item) => ({
     ...item,
-    children: item.children && item.children.length > 0
-      ? updateItemInTreeRecursive(item.children, sourceItem, targetId, newItem, position)
-      : [],
+    children:
+      item.children && item.children.length > 0
+        ? updateItemInTreeRecursive(
+            item.children,
+            sourceItem,
+            targetId,
+            newItem,
+            position
+          )
+        : [],
   }));
 }
 
@@ -235,15 +376,23 @@ function reorderItemInTree(
 ): TreeItem[] {
   // If no target or target not found, append to root level
   if (!targetId) {
-    const treeWithoutSource = removeItemFromTreeRecursive(tree, sourceItem.id) ?? [];
+    const treeWithoutSource =
+      removeItemFromTreeRecursive(tree, sourceItem.id) ?? [];
     return [...treeWithoutSource, sourceItem];
   }
 
   // Remove source item from its current position
-  const treeWithoutSource = removeItemFromTreeRecursive(tree, sourceItem.id) ?? [];
+  const treeWithoutSource =
+    removeItemFromTreeRecursive(tree, sourceItem.id) ?? [];
 
   // Use updateItemInTreeRecursive for reordering
-  return updateItemInTreeRecursive(treeWithoutSource, sourceItem, targetId, undefined, position);
+  return updateItemInTreeRecursive(
+    treeWithoutSource,
+    sourceItem,
+    targetId,
+    undefined,
+    position
+  );
 }
 
 function addItemToTree(
@@ -265,4 +414,46 @@ function addItemToTree(
   const insertIndex = position === "before" ? targetIndex : targetIndex + 1;
   result.splice(insertIndex, 0, item);
   return result;
+}
+
+function addChildrenToTree(
+  tree: TreeItem[],
+  item: TreeItem,
+  targetId: string
+): TreeItem[] {
+  // Helper function to recursively update the tree
+  const updateTreeRecursive = (items: TreeItem[]): TreeItem[] => {
+    return items.map((currentItem) => {
+      // If this is the target parent
+      if (currentItem.id === targetId) {
+        return {
+          ...currentItem,
+          children: [
+            ...(currentItem.children || []),
+            {
+              ...item,
+              parentId: currentItem.id,
+              containerId: currentItem.containerId,
+            },
+          ],
+          // Ensure folder is expanded when adding children
+          isExpanded: true,
+        };
+      }
+
+      // If this item has children, recursively search them
+      if (currentItem.children) {
+        return {
+          ...currentItem,
+          children: updateTreeRecursive(currentItem.children),
+        };
+      }
+
+      // Otherwise return the item unchanged
+      return currentItem;
+    });
+  };
+
+  // Start the recursive update from the root of the tree
+  return updateTreeRecursive(tree);
 }

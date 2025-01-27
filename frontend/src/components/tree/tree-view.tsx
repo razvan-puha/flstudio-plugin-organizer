@@ -18,9 +18,8 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   Edge,
   attachClosestEdge,
-  extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { cn } from "@/lib/utils";
+import { areArraysEqual, areTreeItemsEqual, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/data/store";
 
@@ -37,6 +36,7 @@ export function TreeView({
     addItemToPluginTree,
     renameItemInPluginTree,
     moveItemBetweenTrees,
+    reorderItemInPluginTree
   } = useStore();
 
   const [items, setItems] = useState(getPluginTree(containerId));
@@ -44,7 +44,12 @@ export function TreeView({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<
     | { type: "idle" }
-    | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean; isOverContainer?: boolean }
+    | {
+        type: "dragging-over";
+        edge: Edge;
+        isOverTreeItem?: boolean;
+        isOverContainer?: boolean;
+      }
   >({ type: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [renameState, setRenameState] = useState<{
@@ -121,7 +126,10 @@ export function TreeView({
         canDrop({ source }) {
           console.log("canDrop TreeView");
           const sourceData = source.data as TreeItemDragData;
-          return sourceData.type === "tree-item" && sourceData.data.containerType === type;
+          return (
+            sourceData.type === "tree-item" &&
+            sourceData.data.containerType === type
+          );
         },
         getData({ input }) {
           if (!containerRef.current) throw new Error("Element not found");
@@ -148,20 +156,14 @@ export function TreeView({
             type: "dragging-over",
             edge: "bottom",
             isOverContainer: true,
-            isOverTreeItem: false
+            isOverTreeItem: false,
           });
         },
         onDragLeave() {
           console.log("onDragLeave TreeView");
           setDragState({ type: "idle" });
         },
-      }),
-      monitorForElements({
-        canMonitor({ source }) {
-          const sourceData = source.data as TreeItemDragData;
-          return sourceData.type === "tree-item" && sourceData.data.containerType === type;
-        },
-        onDrop: ({ location, source }) => {
+        onDrop({ location, source }) {
           const dropTargets = location.current.dropTargets;
           const target = dropTargets[dropTargets.length - 1];
           if (!target) return;
@@ -169,8 +171,22 @@ export function TreeView({
           const sourceData = source.data as TreeItemDragData;
           const targetData = target.data as TreeItemDragData;
 
-          // If dropping on the container itself
-          if (targetData.data.fileType === "container") {
+          if (targetData.data.fileType !== "container") {
+            return;
+          }
+
+          if (sourceData.data.containerId === targetData.data.containerId) {
+            reorderItemInPluginTree(
+              sourceData.data.containerId,
+              sourceData.data
+            );
+            
+            setItems(getPluginTree(containerId));
+            setDragState({ type: "idle" });
+            return;
+          }
+
+          if (targetData.data.containerId === containerId) {
             moveItemBetweenTrees(
               sourceData.data.containerId,
               containerId,
@@ -178,50 +194,32 @@ export function TreeView({
             );
             setItems(getPluginTree(containerId));
             setDragState({ type: "idle" });
-            return;
           }
-
-          // Otherwise handle normal tree item drops
-          const targetWithEdge = dropTargets.find((t) => {
-            const data = t.data as TreeItemDragData;
-            return data.edge !== undefined;
-          });
-
-          if (
-            sourceData.id === targetData.id ||
-            sourceData.type !== "tree-item" ||
-            targetData.type !== "tree-item" ||
-            sourceData.data.containerType !== type
-          ) {
-            return;
-          }
-
-          const edge = extractClosestEdge(targetWithEdge?.data ?? targetData);
-          const position = edge === "top" ? "before" : "after";
-
-          moveItemBetweenTrees(
-            sourceData.data.containerId,
-            targetData.data.containerId,
-            sourceData.data,
-            targetData.id,
-            position
-          );
-
-          setItems(getPluginTree(containerId));
-          setDragState({ type: "idle" });
         },
+      }),
+      monitorForElements({
+        canMonitor({ source }) {
+          const sourceData = source.data as TreeItemDragData;
+          return (
+            sourceData.type === "tree-item" &&
+            sourceData.data.containerType === type
+          );
+        },
+        onDrop({ source }) {
+          const sourceData = source.data as TreeItemDragData;
+          
+          if (sourceData.data.containerId === containerId) {
+            const tree = getPluginTree(containerId);
+            if (!areArraysEqual(items, tree, areTreeItemsEqual)) {
+              setItems(tree);
+            } 
+          }
+        }
       })
     );
 
     return cleanup;
-  }, [
-    items,
-    containerId,
-    moveItemBetweenTrees,
-    getPluginTree,
-    type,
-    setItems,
-  ]);
+  }, [items, containerId, moveItemBetweenTrees, getPluginTree, type, setItems, reorderItemInPluginTree]);
 
   const handleDownload = () => {
     const dataStr = JSON.stringify(items, null, 2);
@@ -301,6 +299,10 @@ export function TreeView({
     setSearchQuery("");
   }, [containerId, getPluginTree]);
 
+  const handleItemDrop = useCallback(() => {
+    setItems(getPluginTree(containerId));
+  }, [containerId, getPluginTree]);
+
   return (
     <Card
       className={cn(
@@ -376,15 +378,20 @@ export function TreeView({
           ref={containerRef}
           className={cn(
             "absolute inset-0",
-            dragState.type === "dragging-over" && dragState.isOverContainer && "bg-orange-600/20",
-            "rounded-md transition-colors duration-200",
+            dragState.type === "dragging-over" &&
+              dragState.isOverContainer &&
+              "bg-orange-600/20",
+            "rounded-md transition-colors duration-200"
             // "border-2"
           )}
         />
         <div
           className={cn(
             "h-full overflow-y-auto px-1 relative",
-            dragState.type === "dragging-over" && !dragState.isOverContainer && dragState.isOverTreeItem && "bg-orange-600/10",
+            dragState.type === "dragging-over" &&
+              !dragState.isOverContainer &&
+              dragState.isOverTreeItem &&
+              "bg-orange-600/10",
             "rounded-md transition-colors duration-200"
           )}
         >
@@ -400,6 +407,8 @@ export function TreeView({
               onRename={handleFinishRename}
               initialRenameValue={renameState.value}
               onStartRename={handleStartRename}
+              containerType={type}
+              onItemDrop={handleItemDrop}
             />
           ))}
           {filteredItems.length === 0 && (
