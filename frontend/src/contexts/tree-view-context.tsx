@@ -1,112 +1,115 @@
 "use client";
 
-import { createContext, useContext, useCallback, useReducer, useMemo, useState } from 'react';
+import { createContext, useContext, useCallback, useMemo, useState } from 'react';
 import { TreeViewContextType, TreeViewCallbacks, TreeItem } from '@/types/types';
 
-type ContainerState = {
-  callbacks: Record<string, TreeViewCallbacks>;
-  items: Record<string, TreeItem[]>;
-};
 
-type Action = 
-  | { type: 'REGISTER_CONTAINER'; id: string; callbacks: TreeViewCallbacks; items: TreeItem[] }
-  | { type: 'UNREGISTER_CONTAINER'; id: string }
-  | { type: 'UPDATE_ITEMS'; containerId: string; items: TreeItem[] }
-  | { type: 'NOTIFY_ITEM_REMOVED'; sourceContainerId: string; item: TreeItem };
-
-function containerReducer(state: ContainerState, action: Action): ContainerState {
-  switch (action.type) {
-    case 'REGISTER_CONTAINER':
-      return {
-        callbacks: { ...state.callbacks, [action.id]: action.callbacks },
-        items: { ...state.items, [action.id]: action.items }
-      };
-    
-    case 'UNREGISTER_CONTAINER': {
-        const remainingCallbacks = { ...state.callbacks };
-        const remainingItems = { ...state.items };
-        delete remainingCallbacks[action.id];
-        delete remainingItems[action.id];
-        return {
-          callbacks: remainingCallbacks,
-          items: remainingItems
-        };
-    }
-
-    case 'UPDATE_ITEMS':
-      return {
-        ...state,
-        items: {
-          ...state.items,
-          [action.containerId]: action.items
-        }
-      };
-
-    case 'NOTIFY_ITEM_REMOVED': {
-      const newState = { ...state };
-      Object.entries(newState.callbacks).forEach(([containerId, callbacks]) => {
-        if (containerId !== action.sourceContainerId && 
-            state.items[containerId]?.[0]?.containerType === action.item.containerType) {
-          callbacks.addItem(action.item);
-        }
-      });
-      return newState;
-    }
-
-    default:
-      return state;
-  }
-}
-
-const TreeViewContext = createContext<TreeViewContextType | undefined>(undefined);
+export const TreeViewContext = createContext<TreeViewContextType>({
+    registerContainer: () => {},
+    unregisterContainer: () => {},
+    updateContainer: () => {},
+    notifyItemRemoved: () => {},
+    getItems: () => [],
+    callbacks: {},
+    refreshContainer: () => {},
+    refreshTrigger: {},
+    resetContainer: () => {},
+});
 
 export function TreeViewProvider({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [state, dispatch] = useReducer(containerReducer, { callbacks: {}, items: {} });
-  const [refreshTrigger, setRefreshTrigger] = useState<Record<string, number>>({});
+    const [containers, setContainers] = useState<Record<string, TreeItem[]>>({});
+    const [callbacks, setCallbacks] = useState<Record<string, TreeViewCallbacks>>({});
+    const [refreshTrigger, setRefreshTrigger] = useState<Record<string, number>>({});
 
-  const registerContainer = useCallback((id: string, callbacks: TreeViewCallbacks, items: TreeItem[]) => {
-    dispatch({ type: 'REGISTER_CONTAINER', id, callbacks, items });
-  }, []);
+    const registerContainer = useCallback((id: string, callbacks: TreeViewCallbacks, items: TreeItem[]) => {
+        setCallbacks(prev => ({ ...prev, [id]: callbacks }));
+        setContainers(prev => ({ ...prev, [id]: items }));
+    }, []);
 
-  const unregisterContainer = useCallback((id: string) => {
-    dispatch({ type: 'UNREGISTER_CONTAINER', id });
-  }, []);
+    const unregisterContainer = useCallback((id: string) => {
+        setCallbacks(prev => {
+            const newCallbacks = { ...prev };
+            delete newCallbacks[id];
+            return newCallbacks;
+        });
+        setContainers(prev => {
+            const newContainers = { ...prev };
+            delete newContainers[id];
+            return newContainers;
+        });
+    }, []);
 
-  const notifyItemRemoved = useCallback((sourceContainerId: string, item: TreeItem) => {
-    dispatch({ type: 'NOTIFY_ITEM_REMOVED', sourceContainerId, item });
-  }, []);
+    const notifyItemRemoved = useCallback((sourceContainerId: string, item: TreeItem) => {
+        setContainers(prev => {
+            const newContainers = { ...prev };
+            Object.entries(newContainers).forEach(([containerId, items]) => {
+                if (containerId !== sourceContainerId && 
+                    items[0]?.containerType === item.containerType) {
+                    const newItems = items.filter(i => i.id !== item.id);
+                    newContainers[containerId] = newItems;
+                }
+            });
+            return newContainers;
+        });
+    }, []);
 
-  const updateContainer = useCallback((containerId: string, updater: (items: TreeItem[]) => TreeItem[]) => {
-    dispatch({ 
-      type: 'UPDATE_ITEMS', 
-      containerId, 
-      items: updater(state.items[containerId] || [])
-    });
-  }, [state.items]);
+    const updateContainer = useCallback((containerId: string, updater: (items: TreeItem[]) => TreeItem[]) => {
+        setContainers(prev => ({
+            ...prev,
+            [containerId]: updater(prev[containerId] || [])
+        }));
+    }, []);
 
-  const refreshContainer = useCallback((containerId: string) => {
-    setRefreshTrigger(prev => ({
-      ...prev,
-      [containerId]: (prev[containerId] || 0) + 1
-    }));
-  }, []);
+    const refreshContainer = useCallback((containerId: string) => {
+        setRefreshTrigger(prev => ({
+            ...prev,
+            [containerId]: (prev[containerId] || 0) + 1
+        }));
+    }, []);
 
-  const value = useMemo(() => ({
-    registerContainer,
-    unregisterContainer,
-    updateContainer,
-    notifyItemRemoved,
-    getItems: (containerId: string) => state.items[containerId] || [],
-    callbacks: state.callbacks,
-    refreshContainer,
-    refreshTrigger
-  }), [registerContainer, unregisterContainer, updateContainer, notifyItemRemoved, state.items, state.callbacks, refreshContainer, refreshTrigger]);
+    const resetContainer = useCallback((containerId: string) => {
+        setContainers(prev => ({
+            ...prev,
+            [containerId]: []
+        }));
+        setRefreshTrigger(prev => ({
+            ...prev,
+            [containerId]: (prev[containerId] || 0) + 1
+        }));
+    }, []);
 
-  return (
-    <TreeViewContext.Provider value={value}>
-      {children}
-    </TreeViewContext.Provider>
-  );
+    const getItems = useCallback((containerId: string) => containers[containerId] || [], [containers]);
+
+    const value = useMemo(
+        () => ({
+            registerContainer,
+            unregisterContainer,
+            updateContainer,
+            notifyItemRemoved,
+            getItems,
+            callbacks,
+            refreshContainer,
+            refreshTrigger,
+            resetContainer,
+        }),
+        [
+            registerContainer,
+            unregisterContainer,
+            updateContainer,
+            notifyItemRemoved,
+            getItems,
+            callbacks,
+            refreshContainer,
+            refreshTrigger,
+            resetContainer,
+        ]
+    );
+
+    return (
+        <TreeViewContext.Provider value={value}>
+            {children}
+        </TreeViewContext.Provider>
+    );
 }
 
 export function useTreeViewContext() {

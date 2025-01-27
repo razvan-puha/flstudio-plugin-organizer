@@ -44,7 +44,7 @@ export default function Home() {
   const [labelText, setLabelText] = useState("");
   const [showTree, setShowTree] = useState(false);
 
-  const { refreshContainer } = useTreeViewContext();
+  const { refreshContainer, resetContainer } = useTreeViewContext();
 
   const { addPluginTree, resetStore, getPluginTree } = useStore();
 
@@ -59,7 +59,11 @@ export default function Home() {
 
     fetch(process.env.NEXT_PUBLIC_API_URL + "/api/process", {
       method: "POST",
-      body: createRequestBody(form.getValues().zipFile),
+      body: createRequestBody(
+        form.getValues().zipFile,
+        getPluginTree(ORGANIZED_EFFECTS_CONTAINER_ID),
+        getPluginTree(ORGANIZED_GENERATORS_CONTAINER_ID)
+      ),
     })
       .then((response) => {
         if (response.ok) {
@@ -153,6 +157,13 @@ export default function Home() {
     setDownloadUrl("");
     setLabelText("");
     form.reset();
+    resetStore();
+
+    resetContainer(DEFAULT_EFFECTS_CONTAINER_ID);
+    resetContainer(DEFAULT_GENERATORS_CONTAINER_ID);
+    
+    resetContainer(ORGANIZED_EFFECTS_CONTAINER_ID);
+    resetContainer(ORGANIZED_GENERATORS_CONTAINER_ID);
   };
 
   const copyStructure = (fromContainerId: string, toContainerId: string) => {
@@ -266,9 +277,14 @@ export default function Home() {
                   showViewOperations={false}
                 />
                 <div className="mx-10 flex flex-col gap-2 justify-center">
-                  <Button 
+                  <Button
                     className="bg-card hover:bg-success"
-                    onClick={() => copyStructure(DEFAULT_EFFECTS_CONTAINER_ID, ORGANIZED_EFFECTS_CONTAINER_ID)}
+                    onClick={() =>
+                      copyStructure(
+                        DEFAULT_EFFECTS_CONTAINER_ID,
+                        ORGANIZED_EFFECTS_CONTAINER_ID
+                      )
+                    }
                     size="sm"
                   >
                     <ChevronsRight className="h-6 w-6" />
@@ -289,9 +305,14 @@ export default function Home() {
                   showViewOperations={false}
                 />
                 <div className="mx-10 flex flex-col gap-2 justify-center">
-                  <Button 
+                  <Button
                     className="bg-card hover:bg-success"
-                    onClick={() => copyStructure(DEFAULT_GENERATORS_CONTAINER_ID, ORGANIZED_GENERATORS_CONTAINER_ID)}
+                    onClick={() =>
+                      copyStructure(
+                        DEFAULT_GENERATORS_CONTAINER_ID,
+                        ORGANIZED_GENERATORS_CONTAINER_ID
+                      )
+                    }
                     size="sm"
                   >
                     <ChevronsRight className="h-6 w-6" />

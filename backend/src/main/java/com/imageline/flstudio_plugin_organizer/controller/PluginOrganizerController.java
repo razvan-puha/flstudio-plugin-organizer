@@ -23,8 +23,10 @@ public class PluginOrganizerController {
     private final OrganizerService organizerService;
 
     @PostMapping(value = "/process", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<UrlResource> processZip(@RequestPart MultipartFile file) throws Exception {
-        return organizerService.processZip(file);
+    public ResponseEntity<UrlResource> processZip(@RequestPart MultipartFile file,
+            @RequestPart("effects") String effectsStructureJson,
+            @RequestPart("generators") String generatorsStructureJson) throws Exception {
+        return organizerService.processZip(file, effectsStructureJson, generatorsStructureJson);
     }
 
     @PostMapping(value = "/load", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

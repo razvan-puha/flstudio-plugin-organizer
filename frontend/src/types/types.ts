@@ -60,6 +60,7 @@ export interface TreeViewContextType {
   callbacks: Record<string, TreeViewCallbacks>;
   refreshContainer: (containerId: string) => void;
   refreshTrigger: Record<string, number>;
+  resetContainer: (containerId: string) => void;
 }
 
 export interface TreeViewCallbacks {

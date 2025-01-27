@@ -1,10 +1,13 @@
 package com.imageline.flstudio_plugin_organizer.service;
 
-import com.imageline.flstudio_plugin_organizer.config.MetadataConfig;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imageline.flstudio_plugin_organizer.dto.PluginList;
+import com.imageline.flstudio_plugin_organizer.dto.TreeItem;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchEffectsPathPredicate;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchExtensionPredicate;
 import com.imageline.flstudio_plugin_organizer.predicate.MatchGeneratorsPathPredicate;
+import com.imageline.flstudio_plugin_organizer.util.TreeUtils;
 import com.imageline.flstudio_plugin_organizer.util.ZipUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +24,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -40,7 +45,7 @@ public class OrganizerService {
     private static final String VENDOR_NAME_KEY = "ps_file_vendorname_0";
     private static final String PLUGIN_NAME_KEY = "ps_name";
 
-    private final MetadataConfig metadataConfig;
+    private final ObjectMapper objectMapper;
 
     private Map<String, String> parseNfoContent(String nfoFileContent) {
         return nfoFileContent.lines()
@@ -51,7 +56,8 @@ public class OrganizerService {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public ResponseEntity<UrlResource> processZip(MultipartFile file) throws Exception {
+    public ResponseEntity<UrlResource> processZip(MultipartFile file, String effectsStructureJson,
+            String generatorsStructureJson) throws Exception {
         File fileToProcess = File.createTempFile("plugins", ".zip");
         try (FileOutputStream fileOutputStream = new FileOutputStream(fileToProcess)) {
             fileOutputStream.write(file.getBytes());
@@ -60,7 +66,7 @@ public class OrganizerService {
         try (ZipFile zipFile = new ZipFile(fileToProcess)) {
             log.info("Processing zip file");
             log.debug("Zip file entries: {}", zipFile.stream().map(ZipEntry::getName).toList());
-            File resultZip = processZip(zipFile);
+            File resultZip = processZip(zipFile, effectsStructureJson, generatorsStructureJson);
 
             UrlResource urlResource = new UrlResource(resultZip.toURI());
             return ResponseEntity.ok()
@@ -71,7 +77,8 @@ public class OrganizerService {
         }
     }
 
-    private File processZip(ZipFile zipFile) throws Exception {
+    private File processZip(ZipFile zipFile, String effectsStructureJson, String generatorsStructureJson)
+            throws Exception {
         File startingDirectory = new File(System.getProperty("java.io.tmpdir"),
                 String.format("%s/Organized", UUID.randomUUID()));
 
@@ -80,29 +87,36 @@ public class OrganizerService {
         MatchExtensionPredicate matchNfoPredicate = new MatchExtensionPredicate(NFO_EXTENSION);
 
         log.info("Processing effects");
+        List<TreeItem> effectsStructure = objectMapper.readValue(effectsStructureJson,
+                new TypeReference<List<TreeItem>>() {
+                });
         List<? extends ZipEntry> effectsNfoEntries = zipFile.stream()
                 .filter(zipEntry -> matchEffectsPathPredicate.test(zipEntry.getName()))
                 .filter(zipEntry -> matchNfoPredicate.test(zipEntry.getName()))
                 .toList();
 
         for (ZipEntry nfoEntry : effectsNfoEntries) {
-            processPlugin(zipFile, nfoEntry, new File(startingDirectory, "Effects"));
+            processPlugin(zipFile, nfoEntry, new File(startingDirectory, "Effects"), effectsStructure);
         }
 
         log.info("Processing generators");
+        List<TreeItem> generatorsStructure = objectMapper.readValue(generatorsStructureJson,
+                new TypeReference<List<TreeItem>>() {
+                });
         List<? extends ZipEntry> generatorsNfoEntries = zipFile.stream()
                 .filter(zipEntry -> matchGeneratorsPathPredicate.test(zipEntry.getName()))
                 .filter(zipEntry -> matchNfoPredicate.test(zipEntry.getName()))
                 .toList();
 
         for (ZipEntry nfoEntry : generatorsNfoEntries) {
-            processPlugin(zipFile, nfoEntry, new File(startingDirectory, "Generators"));
+            processPlugin(zipFile, nfoEntry, new File(startingDirectory, "Generators"), generatorsStructure);
         }
 
         return ZipUtils.zipDirectory(startingDirectory);
     }
 
-    private void processPlugin(ZipFile zipFile, ZipEntry nfoEntry, File outDirectory) throws IOException {
+    private void processPlugin(ZipFile zipFile, ZipEntry nfoEntry, File outDirectory, List<TreeItem> structure)
+            throws IOException {
         if (!outDirectory.exists()) {
             boolean directoryCreated = outDirectory.mkdirs();
             log.debug("Created directory {}: {}", outDirectory.getAbsolutePath(), directoryCreated);
@@ -117,7 +131,8 @@ public class OrganizerService {
             case FLSTUDIO_VENDOR_NAME, APPLE_VENDOR_NAME:
                 break;
             default:
-                moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, vendorName, nfoMetadata.get(PLUGIN_NAME_KEY));
+                moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, nfoMetadata.get(PLUGIN_NAME_KEY),
+                        structure);
                 break;
         }
     }
@@ -137,66 +152,55 @@ public class OrganizerService {
         }
     }
 
-    private void moveThirdPartyPlugin(ZipFile zipFile, ZipEntry nfoEntry, File outDirectory, String vendorName,
-            String pluginName) throws IOException {
+    private void moveThirdPartyPlugin(ZipFile zipFile, ZipEntry nfoEntry, File outDirectory, String pluginName, List<TreeItem> structure) throws IOException {
         Path thirdPartyPluginsDirectory = Path.of(outDirectory.getAbsolutePath(), "User");
+        log.debug("Third party plugins directory: {}", thirdPartyPluginsDirectory);
+
+
         if (!thirdPartyPluginsDirectory.toFile().exists()) {
             boolean dirCreated = thirdPartyPluginsDirectory.toFile().mkdirs();
             log.debug("Created directory {}: {}", thirdPartyPluginsDirectory, dirCreated);
-        }
-
-        Path vendorDirectory = Path.of(thirdPartyPluginsDirectory.toFile().getAbsolutePath(), vendorName);
-        if (!vendorDirectory.toFile().exists()) {
-            boolean dirCreated = vendorDirectory.toFile().mkdirs();
-            log.debug("Created directory {}: {}", vendorDirectory, dirCreated);
-        }
-
-        log.info("Moving plugin {} to {}", pluginName, vendorDirectory);
+        }       
 
         byte[] bytes = new byte[1024];
         int length;
 
         File fstFile;
         File nfoFile;
-        if (StringUtils.hasText(metadataConfig.getPluginTypeFor(pluginName))) {
-            String pluginType = metadataConfig.getPluginTypeFor(pluginName);
 
-            // create the plugin type directory first
-            File pluginTypeDir = new File(vendorDirectory.toFile().getAbsolutePath(), pluginType);
-            boolean pluginTypeDirCreated = pluginTypeDir.mkdirs();
-            log.debug("Created directory {} under {}: {}", pluginType, vendorName, pluginTypeDirCreated);
+        String path = TreeUtils.getPathForPlugin(structure, pluginName);
+        if (StringUtils.hasText(path)) {
+            Path pathObject = thirdPartyPluginsDirectory.resolve(path);
+            Files.createDirectories(pathObject);
 
-            fstFile = new File(pluginTypeDir.getAbsolutePath(), String.format("%s%s", pluginName, PLUGIN_EXTENSION));
-            nfoFile = new File(pluginTypeDir.getAbsolutePath(), String.format("%s%s", pluginName, NFO_EXTENSION));
-        } else {
-            fstFile = new File(vendorDirectory.toFile().getAbsolutePath(),
-                    String.format("%s%s", pluginName, PLUGIN_EXTENSION));
-            nfoFile = new File(vendorDirectory.toFile().getAbsolutePath(),
-                    String.format("%s%s", pluginName, NFO_EXTENSION));
-        }
+            log.info("Moving plugin {} to {}", pluginName, pathObject);
 
-        // move fst
-        boolean fstFileCreated = fstFile.createNewFile();
-        log.debug("Created file {}: {}", fstFile.getAbsolutePath(), fstFileCreated);
+            fstFile = pathObject.resolve(String.format("%s%s", pluginName, PLUGIN_EXTENSION)).toFile();
+            nfoFile = pathObject.resolve(String.format("%s%s", pluginName, NFO_EXTENSION)).toFile();
 
-        try (
-                FileOutputStream fos = new FileOutputStream(fstFile);
-                InputStream inputStream = zipFile.getInputStream(
-                        zipFile.getEntry(nfoEntry.getName().replace(NFO_EXTENSION, PLUGIN_EXTENSION)))) {
-            while ((length = inputStream.read(bytes)) > 0) {
-                fos.write(bytes, 0, length);
+            // move fst
+            boolean fstFileCreated = fstFile.createNewFile();
+            log.debug("Created file {}: {}", fstFile.getAbsolutePath(), fstFileCreated);
+
+            try (
+                    FileOutputStream fos = new FileOutputStream(fstFile);
+                    InputStream inputStream = zipFile.getInputStream(
+                            zipFile.getEntry(nfoEntry.getName().replace(NFO_EXTENSION, PLUGIN_EXTENSION)))) {
+                while ((length = inputStream.read(bytes)) > 0) {
+                    fos.write(bytes, 0, length);
+                }
             }
-        }
 
-        // move nfo
-        boolean nfoFileCreated = nfoFile.createNewFile();
-        log.debug("Created file {}: {}", nfoFile.getAbsolutePath(), nfoFileCreated);
+            // move nfo
+            boolean nfoFileCreated = nfoFile.createNewFile();
+            log.debug("Created file {}: {}", nfoFile.getAbsolutePath(), nfoFileCreated);
 
-        try (
-                FileOutputStream fos = new FileOutputStream(nfoFile);
-                InputStream inputStream = zipFile.getInputStream(nfoEntry)) {
-            while ((length = inputStream.read(bytes)) > 0) {
-                fos.write(bytes, 0, length);
+            try (
+                    FileOutputStream fos = new FileOutputStream(nfoFile);
+                    InputStream inputStream = zipFile.getInputStream(nfoEntry)) {
+                while ((length = inputStream.read(bytes)) > 0) {
+                    fos.write(bytes, 0, length);
+                }
             }
         }
     }

@@ -7,9 +7,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function createRequestBody(file: FileList): FormData {
+export function createRequestBody(file: FileList, effectsList?: TreeItem[], generatorsList?: TreeItem[]): FormData {
   const formData = new FormData();
   formData.append("file", file[0]);
+  if (effectsList) {
+    formData.append("effects", JSON.stringify(effectsList));
+  }
+  if (generatorsList) {
+    formData.append("generators", JSON.stringify(generatorsList));
+  }
   return formData;
 }
 
