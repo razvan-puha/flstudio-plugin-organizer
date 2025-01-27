@@ -26,7 +26,7 @@ export type TreeItemDragData = {
 };
 
 export type ContainerType = "effects" | "generators";
-export type FileType = "folder" | "file";
+export type FileType = "file" | "folder" | "container";
 
 export interface TreeViewProps {
   onItemsChange?: (items: TreeItem[]) => void;

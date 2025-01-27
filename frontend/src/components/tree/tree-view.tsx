@@ -44,7 +44,7 @@ export function TreeView({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<
     | { type: "idle" }
-    | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean }
+    | { type: "dragging-over"; edge: Edge; isOverTreeItem?: boolean; isOverContainer?: boolean }
   >({ type: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [renameState, setRenameState] = useState<{
@@ -119,11 +119,9 @@ export function TreeView({
         element: containerRef.current,
         getIsSticky: () => true,
         canDrop({ source }) {
+          console.log("canDrop TreeView");
           const sourceData = source.data as TreeItemDragData;
-          return (
-            sourceData.type === "tree-item" &&
-            sourceData.data.containerType === type
-          );
+          return sourceData.type === "tree-item" && sourceData.data.containerType === type;
         },
         getData({ input }) {
           if (!containerRef.current) throw new Error("Element not found");
@@ -135,6 +133,7 @@ export function TreeView({
               containerId,
               containerType: type,
               parentId: containerId,
+              fileType: "container",
             },
           };
           return attachClosestEdge(data, {
@@ -143,54 +142,61 @@ export function TreeView({
             allowedEdges: ["top", "bottom"],
           });
         },
-        onDragEnter({ self }) {
-          const edge = extractClosestEdge(self.data);
+        onDragEnter() {
+          console.log("onDragEnter TreeView");
           setDragState({
             type: "dragging-over",
-            edge: edge ?? "bottom",
-            isOverTreeItem: false,
+            edge: "bottom",
+            isOverContainer: true,
+            isOverTreeItem: false
           });
         },
         onDragLeave() {
-          setDragState({ type: "idle" });
-        },
-        onDrop() {
+          console.log("onDragLeave TreeView");
           setDragState({ type: "idle" });
         },
       }),
       monitorForElements({
         canMonitor({ source }) {
           const sourceData = source.data as TreeItemDragData;
-          return (
-            sourceData.type === "tree-item" &&
-            sourceData.data.containerType === type
-          );
+          return sourceData.type === "tree-item" && sourceData.data.containerType === type;
         },
         onDrop: ({ location, source }) => {
           const dropTargets = location.current.dropTargets;
           const target = dropTargets[dropTargets.length - 1];
           if (!target) return;
 
+          const sourceData = source.data as TreeItemDragData;
+          const targetData = target.data as TreeItemDragData;
+
+          // If dropping on the container itself
+          if (targetData.data.fileType === "container") {
+            moveItemBetweenTrees(
+              sourceData.data.containerId,
+              containerId,
+              sourceData.data
+            );
+            setItems(getPluginTree(containerId));
+            setDragState({ type: "idle" });
+            return;
+          }
+
+          // Otherwise handle normal tree item drops
           const targetWithEdge = dropTargets.find((t) => {
             const data = t.data as TreeItemDragData;
             return data.edge !== undefined;
           });
 
-          const sourceData = source.data as TreeItemDragData;
-          const targetData = targetWithEdge
-            ? (targetWithEdge.data as TreeItemDragData)
-            : (target.data as TreeItemDragData);
-
           if (
             sourceData.id === targetData.id ||
             sourceData.type !== "tree-item" ||
             targetData.type !== "tree-item" ||
-            sourceData.data.containerType !== targetData.data.containerType
+            sourceData.data.containerType !== type
           ) {
             return;
           }
 
-          const edge = extractClosestEdge(targetData);
+          const edge = extractClosestEdge(targetWithEdge?.data ?? targetData);
           const position = edge === "top" ? "before" : "after";
 
           moveItemBetweenTrees(
@@ -202,6 +208,7 @@ export function TreeView({
           );
 
           setItems(getPluginTree(containerId));
+          setDragState({ type: "idle" });
         },
       })
     );
@@ -367,14 +374,18 @@ export function TreeView({
       <div className="flex-1 min-h-0 p-4 pt-0 relative">
         <div
           ref={containerRef}
-          className="absolute inset-0 pointer-events-none"
+          className={cn(
+            "absolute inset-0",
+            dragState.type === "dragging-over" && dragState.isOverContainer && "bg-orange-600/20",
+            "rounded-md transition-colors duration-200",
+            // "border-2"
+          )}
         />
         <div
           className={cn(
-            "h-full overflow-y-auto px-1",
-            dragState.type === "dragging-over" &&
-              !dragState.isOverTreeItem &&
-              "bg-orange-600/20 rounded-md"
+            "h-full overflow-y-auto px-1 relative",
+            dragState.type === "dragging-over" && !dragState.isOverContainer && dragState.isOverTreeItem && "bg-orange-600/10",
+            "rounded-md transition-colors duration-200"
           )}
         >
           {filteredItems.map((item) => (
