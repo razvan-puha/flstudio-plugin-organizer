@@ -267,7 +267,7 @@ export default function Home() {
                 />
                 <div className="mx-10 flex flex-col gap-2 justify-center">
                   <Button 
-                    className="text-white hover:bg-success"
+                    className="bg-card hover:bg-success"
                     onClick={() => copyStructure(DEFAULT_EFFECTS_CONTAINER_ID, ORGANIZED_EFFECTS_CONTAINER_ID)}
                     size="sm"
                   >
@@ -290,7 +290,7 @@ export default function Home() {
                 />
                 <div className="mx-10 flex flex-col gap-2 justify-center">
                   <Button 
-                    className="text-white hover:bg-success"
+                    className="bg-card hover:bg-success"
                     onClick={() => copyStructure(DEFAULT_GENERATORS_CONTAINER_ID, ORGANIZED_GENERATORS_CONTAINER_ID)}
                     size="sm"
                   >
