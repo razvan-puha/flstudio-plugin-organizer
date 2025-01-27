@@ -26,7 +26,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -127,14 +126,10 @@ public class OrganizerService {
         Map<String, String> nfoMetadata = parseNfoContent(nfoContent);
         String vendorName = nfoMetadata.get(VENDOR_NAME_KEY);
 
-        switch (vendorName) {
-            case FLSTUDIO_VENDOR_NAME, APPLE_VENDOR_NAME:
-                break;
-            default:
-                moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, nfoMetadata.get(PLUGIN_NAME_KEY),
-                        structure);
-                break;
+        if (FLSTUDIO_VENDOR_NAME.equals(vendorName) || APPLE_VENDOR_NAME.equals(vendorName)) {
+            return;
         }
+        moveThirdPartyPlugin(zipFile, nfoEntry, outDirectory, nfoMetadata.get(PLUGIN_NAME_KEY), structure);
     }
 
     private String readFile(ZipFile zipFile, ZipEntry zipEntry) throws IOException {
@@ -265,16 +260,12 @@ public class OrganizerService {
         Map<String, String> nfoMetadata = parseNfoContent(nfoContent);
         String vendorName = nfoMetadata.get(VENDOR_NAME_KEY);
 
-        switch (vendorName) {
-            case FLSTUDIO_VENDOR_NAME, APPLE_VENDOR_NAME:
-                break;
-            default:
-                if (!vendorPlugins.containsKey(vendorName)) {
-                    vendorPlugins.put(vendorName, new ArrayList<>());
-                }
-
-                vendorPlugins.get(vendorName).add(nfoMetadata.get(PLUGIN_NAME_KEY));
-                break;
+        if (FLSTUDIO_VENDOR_NAME.equals(vendorName) || APPLE_VENDOR_NAME.equals(vendorName)) {
+            return;
         }
+        if (!vendorPlugins.containsKey(vendorName)) {
+            vendorPlugins.put(vendorName, new ArrayList<>());
+        }
+        vendorPlugins.get(vendorName).add(nfoMetadata.get(PLUGIN_NAME_KEY));
     }
 }
