@@ -263,6 +263,7 @@ export function TreeView({
         const content = e.target?.result as string;
         const parsedData = JSON.parse(content) as TreeItemType[];
         setItems(parsedData);
+        addPluginTree(containerId, parsedData);
       } catch (error) {
         console.error("Error parsing JSON:", error);
       }
